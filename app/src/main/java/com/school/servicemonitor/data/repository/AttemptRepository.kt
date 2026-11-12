@@ -1,5 +1,6 @@
 package com.school.servicemonitor.data.repository
 
+import com.school.servicemonitor.data.entity.AttemptHistoryRow
 import androidx.room.withTransaction
 import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.dao.AttemptDao
@@ -43,6 +44,12 @@ class AttemptRepository(
 
     fun observeAttempts(studentId: Long, date: LocalDate): Flow<List<ServiceAttempt>> =
         attemptDao.observeForStudentDate(studentId, date)
+
+    fun observeHistoryForDate(date: LocalDate): Flow<List<AttemptHistoryRow>> =
+        attemptDao.observeHistoryForDate(date)
+
+    fun observeHistoryForStudent(studentId: Long): Flow<List<AttemptHistoryRow>> =
+        attemptDao.observeHistoryForStudent(studentId)
 
     /**
      * PASS: needs a valid range of at least the daily credit (default 60 minutes).

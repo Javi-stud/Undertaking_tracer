@@ -1,5 +1,6 @@
 package com.school.servicemonitor.ui.navigation
 
+import com.school.servicemonitor.ui.history.HistoryScreen
 import com.school.servicemonitor.ui.attempts.AttemptScreen
 import java.time.LocalDate
 import com.school.servicemonitor.ui.dashboard.DashboardScreen
@@ -151,7 +152,9 @@ fun AppNavigation() {
                 )
             }
             composable(Routes.HISTORY) {
-                PlaceholderScreen("Attendance History", "Attendance history arrives with the daily service stages.")
+                HistoryScreen(
+                    onOpenStudent = { id -> navController.navigate(Routes.studentProfile(id)) }
+                )
             }
             composable(Routes.REPORTS) {
                 PlaceholderScreen("Reports", "PDF and Word reports arrive in Stage 17.")

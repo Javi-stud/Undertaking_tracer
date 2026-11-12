@@ -269,7 +269,10 @@ private fun ProfileContent(
             }
         }
 
+        StudentAttendanceSection(studentId = student.id)
+
         if (isArchived) {
+
             Button(onClick = onRestore, modifier = Modifier.fillMaxWidth()) {
                 Text("Restore student")
             }
