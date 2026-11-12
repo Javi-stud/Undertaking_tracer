@@ -26,4 +26,8 @@ interface AppSettingDao {
     // A Flow re-emits automatically whenever the table changes.
     @Query("SELECT * FROM app_settings")
     fun observeAll(): Flow<List<AppSetting>>
+
+    // Saves several settings in one step: all of them are written, or none.
+    @Upsert
+    suspend fun upsertAll(settings: List<AppSetting>)
 }

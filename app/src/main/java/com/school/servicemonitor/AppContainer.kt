@@ -1,5 +1,6 @@
 package com.school.servicemonitor
 
+import com.school.servicemonitor.backup.BackupManager
 import com.school.servicemonitor.data.repository.ReportRepository
 import android.content.Context
 import com.school.servicemonitor.data.AppDatabase
@@ -123,6 +124,12 @@ class AppContainer(context: Context) {
             excuses = excuseRepository,
             exemptions = exemptionRepository,
             deadlines = deadlineRepository,
+            settings = settingsRepository
+        )
+    val backupManager: BackupManager =
+        BackupManager(
+            context = context.applicationContext,
+            database = database,
             settings = settingsRepository
         )
 }

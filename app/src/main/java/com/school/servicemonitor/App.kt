@@ -1,6 +1,7 @@
 package com.school.servicemonitor
 
 import android.app.Application
+import com.school.servicemonitor.backup.RestoreApplier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,6 +16,10 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // A confirmed restore is applied now, before the database is opened.
+        RestoreApplier.applyPendingIfAny(this)
+
         container = AppContainer(this)
 
         // Create default settings the first time the app runs.

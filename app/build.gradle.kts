@@ -6,6 +6,12 @@ plugins {
 }
 
 android {
+
+    // Lets Stage 19's migration tests read the saved schema files.
+    sourceSets {
+        getByName("androidTest").assets.srcDir("$projectDir/schemas")
+    }
+
     namespace = "com.school.servicemonitor"
     compileSdk = 35
 

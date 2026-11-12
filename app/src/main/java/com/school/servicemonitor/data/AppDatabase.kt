@@ -48,7 +48,7 @@ import com.school.servicemonitor.data.entity.Violation
         ExcuseExtension::class,
         ActivityLog::class
     ],
-    version = 9,
+    version = AppDatabase.VERSION,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -69,13 +69,20 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun activityLogDao(): ActivityLogDao
 
     companion object {
+        /** Raise this by one for every schema change, and add a Migration in Migrations.kt. */
+        const val VERSION = 9
         const val DB_NAME = "service_monitor.db"
 
+        /** The shared setup, including every real migration. */
+        fun builder(context: Context, name: String = DB_NAME): Builder<AppDatabase> =
+            Room.databaseBuilder(context, AppDatabase::class.java, name)
+                .addMigrations(*Migrations.ALL)
+
         fun build(context: Context): AppDatabase =
-            Room.databaseBuilder(context, AppDatabase::class.java, DB_NAME)
-                // DEVELOPMENT ONLY: wipes and rebuilds the database when the schema changes.
-                // Will be replaced with real migrations before real data is used.
-                .fallbackToDestructiveMigration()
+            builder(context)
+                // Only databases older than version 9 are rebuilt. They were development
+                // versions that never held real data. Version 9 and newer are NEVER wiped.
+                .fallbackToDestructiveMigrationFrom(1, 2, 3, 4, 5, 6, 7, 8)
                 .build()
     }
 }
