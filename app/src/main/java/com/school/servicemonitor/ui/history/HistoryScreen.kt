@@ -36,6 +36,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.school.servicemonitor.appContainer
+import com.school.servicemonitor.data.entity.ExcuseHistoryRow
 import com.school.servicemonitor.domain.DayOutcome
 import com.school.servicemonitor.domain.HistoryBuilder
 import com.school.servicemonitor.domain.StudentDayHistory
@@ -54,11 +55,12 @@ fun HistoryScreen(onOpenStudent: (Long) -> Unit) {
     val container = LocalContext.current.appContainer()
     val viewModel: HistoryViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { HistoryViewModel(container.attemptRepository) }
+            initializer { HistoryViewModel(container.attemptRepository, container.excuseRepository) }
         }
     )
     val date by viewModel.date.collectAsStateWithLifecycle()
     val days by viewModel.days.collectAsStateWithLifecycle()
+    val excuses by viewModel.excuses.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Attendance History") }) },
@@ -98,39 +100,51 @@ fun HistoryScreen(onOpenStudent: (Long) -> Unit) {
                 }
             }
 
-            when (val list = days) {
-                null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            val list = days
+            when {
+                list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
 
+                list.isEmpty() && excuses.isEmpty() -> Box(
+                    Modifier.fillMaxSize().padding(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No attempts or excuses were recorded on this date.",
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
                 else -> {
-                    if (list.isEmpty()) {
-                        Box(
-                            Modifier.fillMaxSize().padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "No attempts were recorded on this date.",
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.bodyLarge
-                            )
+                    val s = HistoryBuilder.summarize(list)
+                    val activeExcuses = excuses.count { it.excuse.revokedAt == null }
+                    Text(
+                        "${list.size} student(s)  |  ${s.daysPassed} passed  |  " +
+                                "${s.failedAttempts} failed attempt(s)  |  ${s.voidedAttempts} voided  |  " +
+                                "$activeExcuses excused  |  ${formatMinutes(s.creditedMinutes)} credited",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    LazyColumn(
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(list, key = { "${it.studentId}-${it.date}" }) { day ->
+                            DayCard(day, onClick = { onOpenStudent(day.studentId) })
                         }
-                    } else {
-                        val s = HistoryBuilder.summarize(list)
-                        Text(
-                            "${list.size} student(s)  |  ${s.daysPassed} passed  |  " +
-                                    "${s.failedAttempts} failed attempt(s)  |  ${s.voidedAttempts} voided  |  " +
-                                    "${formatMinutes(s.creditedMinutes)} credited",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
-                        LazyColumn(
-                            contentPadding = PaddingValues(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(list, key = { "${it.studentId}-${it.date}" }) { day ->
-                                DayCard(day, onClick = { onOpenStudent(day.studentId) })
+                        if (excuses.isNotEmpty()) {
+                            item(key = "excuse-header") {
+                                Text(
+                                    "Daily excuses",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
+                            items(excuses, key = { "excuse-${it.excuse.id}" }) { row ->
+                                ExcuseCard(row, onClick = { onOpenStudent(row.excuse.studentId) })
                             }
                         }
                     }
@@ -159,6 +173,46 @@ private fun DayCard(day: StudentDayHistory, onClick: () -> Unit) {
             day.attempts.forEach { attempt ->
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 AttemptLine(attempt)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExcuseCard(row: ExcuseHistoryRow, onClick: () -> Unit) {
+    val e = row.excuse
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        HistoryBuilder.displayName(row.lastName, row.firstName, row.middleName),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "No. ${row.studentNumber}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (e.revokedAt == null) {
+                    StatusChip(
+                        "EXCUSED",
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                } else {
+                    StatusChip(
+                        "REVOKED",
+                        MaterialTheme.colorScheme.errorContainer,
+                        MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
+            }
+            Text("Reason: ${e.reason}", style = MaterialTheme.typography.bodyMedium)
+            e.revokeReason?.let {
+                Text("Revoke reason: $it", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

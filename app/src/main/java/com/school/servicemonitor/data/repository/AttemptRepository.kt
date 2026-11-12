@@ -1,20 +1,20 @@
 package com.school.servicemonitor.data.repository
 
-import com.school.servicemonitor.data.entity.AttemptHistoryRow
 import androidx.room.withTransaction
 import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.dao.AttemptDao
 import com.school.servicemonitor.data.dao.DailyRecordDao
+import com.school.servicemonitor.data.dao.ExcuseDao
 import com.school.servicemonitor.data.dao.SanctionDao
 import com.school.servicemonitor.data.dao.StudentDao
+import com.school.servicemonitor.data.entity.AttemptHistoryRow
 import com.school.servicemonitor.data.entity.AttemptResultType
 import com.school.servicemonitor.data.entity.AttemptState
 import com.school.servicemonitor.data.entity.DailyRecordRow
-import com.school.servicemonitor.data.entity.DailyServiceRecord
 import com.school.servicemonitor.data.entity.ServiceAttempt
 import com.school.servicemonitor.data.entity.StudentStatus
 import com.school.servicemonitor.domain.AllocationEngine
-import com.school.servicemonitor.domain.DailyRecordResolver
+import com.school.servicemonitor.domain.BulkPassItem
 import com.school.servicemonitor.domain.PassCheck
 import com.school.servicemonitor.domain.ScheduleCalculator
 import com.school.servicemonitor.domain.TimeRangeCalculator
@@ -23,6 +23,7 @@ import com.school.servicemonitor.domain.toBalance
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 import java.time.LocalTime
+import java.util.UUID
 
 sealed interface AttemptOutcome {
     data class Saved(val attemptId: Long, val creditedMinutes: Int) : AttemptOutcome
@@ -35,7 +36,9 @@ class AttemptRepository(
     private val attemptDao: AttemptDao,
     private val studentDao: StudentDao,
     private val sanctionDao: SanctionDao,
+    private val excuseDao: ExcuseDao,
     private val allocationRepository: AllocationRepository,
+    private val sync: DailyRecordSync,
     private val settings: SettingsRepository
 ) {
 
@@ -59,7 +62,8 @@ class AttemptRepository(
         studentId: Long,
         date: LocalDate,
         start: LocalTime,
-        end: LocalTime
+        end: LocalTime,
+        bulkBatchId: String? = null
     ): AttemptOutcome = db.withTransaction {
         val limit = settings.getInt(SettingsRepository.KEY_DAILY_CREDIT_MINUTES, 60)
 
@@ -81,7 +85,7 @@ class AttemptRepository(
         val balances = sanctionDao.getRows(studentId).map { it.toBalance() }
         val planned = AllocationEngine.allocate(balances, date, limit).sumOf { it.minutes }
 
-        val record = recordFor(studentId, date)
+        val record = sync.ensureRecord(studentId, date)
         val now = System.currentTimeMillis()
         val attemptId = attemptDao.insert(
             ServiceAttempt(
@@ -93,6 +97,7 @@ class AttemptRepository(
                 durationMinutes = duration,
                 result = AttemptResultType.PASS,
                 creditedMinutes = planned,
+                bulkBatchId = bulkBatchId,
                 createdAt = now
             )
         )
@@ -101,7 +106,7 @@ class AttemptRepository(
         // If the two calculations ever disagree, throwing here rolls everything back.
         check(allocations.sumOf { it.minutes } == planned) { "Credit mismatch. Nothing was saved." }
 
-        refreshRecord(record.id)
+        sync.refresh(record)
         AttemptOutcome.Saved(attemptId, planned)
     }
 
@@ -124,7 +129,7 @@ class AttemptRepository(
             return@withTransaction AttemptOutcome.Rejected("The end time must be later than the start time.")
         }
 
-        val record = recordFor(studentId, date)
+        val record = sync.ensureRecord(studentId, date)
         val attemptId = attemptDao.insert(
             ServiceAttempt(
                 dailyRecordId = record.id,
@@ -139,9 +144,26 @@ class AttemptRepository(
                 createdAt = System.currentTimeMillis()
             )
         )
-        refreshRecord(record.id)
+        sync.refresh(record)
         AttemptOutcome.Saved(attemptId, 0)
     }
+
+    /**
+     * Bulk PASS: one separate attempt per student, all sharing one batch id.
+     * Every student goes through the same checks as a single PASS. A student who is rejected
+     * writes nothing and is reported in the result. If something unexpected throws,
+     * the whole batch is rolled back.
+     */
+    suspend fun recordBulkPass(items: List<BulkPassItem>, date: LocalDate): List<BulkItemResult> =
+        db.withTransaction {
+            val batchId = UUID.randomUUID().toString()
+            items.map { item ->
+                BulkItemResult(
+                    studentId = item.studentId,
+                    outcome = recordPass(item.studentId, date, item.start, item.end, batchId)
+                )
+            }
+        }
 
     /** Rules shared by PASS and FAIL. Returns an error message, or null when everything is fine. */
     private suspend fun checkCommon(studentId: Long, date: LocalDate): String? {
@@ -157,6 +179,9 @@ class AttemptRepository(
         )
         if (!ScheduleCalculator.isServiceDay(date, days)) {
             return "This is not a service day. Use bulk Excused for holidays."
+        }
+        if (excuseDao.findActive(studentId, date) != null) {
+            return "This student is excused on this date. Revoke the excuse first to record cleaning."
         }
 
         val existing = recordDao.find(studentId, date)
@@ -175,27 +200,6 @@ class AttemptRepository(
         }
         return null
     }
-
-    private suspend fun recordFor(studentId: Long, date: LocalDate): DailyServiceRecord {
-        recordDao.find(studentId, date)?.let { return it }
-        val now = System.currentTimeMillis()
-        val record = DailyServiceRecord(
-            studentId = studentId,
-            serviceDate = date,
-            createdAt = now,
-            updatedAt = now
-        )
-        return record.copy(id = recordDao.insert(record))
-    }
-
-    /** Recomputes the cached daily status from the attempts. Stage 16 reuses this for voids. */
-    private suspend fun refreshRecord(recordId: Long) {
-        val resolved = DailyRecordResolver.resolve(attemptDao.getForRecord(recordId))
-        recordDao.updateSummary(
-            recordId,
-            resolved.status,
-            resolved.creditedMinutes,
-            System.currentTimeMillis()
-        )
-    }
 }
+
+data class BulkItemResult(val studentId: Long, val outcome: AttemptOutcome)

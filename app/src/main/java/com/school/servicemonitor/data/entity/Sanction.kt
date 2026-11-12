@@ -65,8 +65,11 @@ data class Sanction(
 )
 
 /** A sanction with its violation name and the minutes credited to it so far. */
+/** A sanction with its violation name, the minutes credited so far, and the minutes exempted. */
 data class SanctionRow(
     @Embedded val sanction: Sanction,
     @ColumnInfo(name = "violation_name") val violationName: String,
-    @ColumnInfo(name = "allocated_minutes") val allocatedMinutes: Int
+    @ColumnInfo(name = "allocated_minutes") val allocatedMinutes: Int,
+    @ColumnInfo(name = "exempted_minutes") val exemptedMinutes: Int = 0
 )
+

@@ -269,6 +269,8 @@ private fun ProfileContent(
             }
         }
 
+        StudentExcusesSection(studentId = student.id, canGrant = !isArchived)
+
         StudentAttendanceSection(studentId = student.id)
 
         if (isArchived) {
@@ -319,6 +321,7 @@ private fun HoursSummaryCard(summary: HourSummary) {
             HorizontalDivider()
             InfoRow("Completed", formatMinutes(summary.completedMinutes))
             InfoRow("Total assigned", formatMinutes(summary.totalAssignedMinutes))
+            if (summary.exemptedMinutes > 0) InfoRow("Exempted", formatMinutes(summary.exemptedMinutes))
         }
     }
 }
@@ -372,6 +375,12 @@ private fun SanctionItem(row: SanctionRow) {
             "Completed: ${formatMinutes(row.allocatedMinutes)}   |   Remaining: ${formatMinutes(remaining)}",
             style = MaterialTheme.typography.bodyMedium
         )
+        if (row.exemptedMinutes > 0) {
+            Text(
+                "Exempted: ${formatMinutes(row.exemptedMinutes)}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
         Text(
             "${s.startDate.display()}  to  ${s.endDate.display()}",
             style = MaterialTheme.typography.bodySmall,

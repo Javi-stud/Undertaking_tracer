@@ -15,7 +15,7 @@ interface SanctionDao {
     suspend fun insert(sanction: Sanction): Long
 
     // Earliest deadline first, then oldest assigned: the same order the allocation engine uses.
-    // allocated_minutes counts only allocations that have not been reversed (voided).
+    // Credits count only when not reversed (voided). Exemptions are summed per sanction.
     @Query(
         """
         SELECT s.*,
@@ -24,7 +24,12 @@ interface SanctionDao {
                    SELECT SUM(a.allocated_minutes)
                    FROM sanction_hour_allocations a
                    WHERE a.sanction_id = s.id AND a.reversed_at IS NULL
-               ), 0) AS allocated_minutes
+               ), 0) AS allocated_minutes,
+               COALESCE((
+                   SELECT SUM(x.exempted_minutes)
+                   FROM sanction_exemptions x
+                   WHERE x.sanction_id = s.id
+               ), 0) AS exempted_minutes
         FROM sanctions s
         INNER JOIN violations v ON v.id = s.violation_id
         WHERE s.student_id = :studentId
@@ -42,7 +47,12 @@ interface SanctionDao {
                    SELECT SUM(a.allocated_minutes)
                    FROM sanction_hour_allocations a
                    WHERE a.sanction_id = s.id AND a.reversed_at IS NULL
-               ), 0) AS allocated_minutes
+               ), 0) AS allocated_minutes,
+               COALESCE((
+                   SELECT SUM(x.exempted_minutes)
+                   FROM sanction_exemptions x
+                   WHERE x.sanction_id = s.id
+               ), 0) AS exempted_minutes
         FROM sanctions s
         INNER JOIN violations v ON v.id = s.violation_id
         WHERE s.student_id = :studentId
@@ -50,12 +60,6 @@ interface SanctionDao {
         """
     )
     suspend fun getRows(studentId: Long): List<SanctionRow>
-
-    @Query("UPDATE sanctions SET status = :status, completed_at = :completedAt WHERE id = :id")
-    suspend fun updateStatus(id: Long, status: SanctionStatus, completedAt: Long?)
-
-    @Query("SELECT COUNT(*) FROM sanctions WHERE student_id = :studentId")
-    suspend fun countByStudent(studentId: Long): Int
 
     // Every sanction of every active student, for the dashboard.
     @Query(
@@ -66,7 +70,12 @@ interface SanctionDao {
                    SELECT SUM(a.allocated_minutes)
                    FROM sanction_hour_allocations a
                    WHERE a.sanction_id = s.id AND a.reversed_at IS NULL
-               ), 0) AS allocated_minutes
+               ), 0) AS allocated_minutes,
+               COALESCE((
+                   SELECT SUM(x.exempted_minutes)
+                   FROM sanction_exemptions x
+                   WHERE x.sanction_id = s.id
+               ), 0) AS exempted_minutes
         FROM sanctions s
         INNER JOIN violations v ON v.id = s.violation_id
         INNER JOIN students st ON st.id = s.student_id
@@ -75,4 +84,10 @@ interface SanctionDao {
         """
     )
     fun observeAllForActiveStudents(): Flow<List<SanctionRow>>
+
+    @Query("UPDATE sanctions SET status = :status, completed_at = :completedAt WHERE id = :id")
+    suspend fun updateStatus(id: Long, status: SanctionStatus, completedAt: Long?)
+
+    @Query("SELECT COUNT(*) FROM sanctions WHERE student_id = :studentId")
+    suspend fun countByStudent(studentId: Long): Int
 }

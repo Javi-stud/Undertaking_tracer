@@ -2,7 +2,9 @@ package com.school.servicemonitor.ui.history
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.school.servicemonitor.data.entity.ExcuseHistoryRow
 import com.school.servicemonitor.data.repository.AttemptRepository
+import com.school.servicemonitor.data.repository.ExcuseRepository
 import com.school.servicemonitor.domain.HistoryBuilder
 import com.school.servicemonitor.domain.StudentDayHistory
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,7 +18,10 @@ import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class HistoryViewModel(attemptRepository: AttemptRepository) : ViewModel() {
+class HistoryViewModel(
+    attemptRepository: AttemptRepository,
+    excuseRepository: ExcuseRepository
+) : ViewModel() {
 
     private val _date = MutableStateFlow(LocalDate.now())
     val date: StateFlow<LocalDate> = _date.asStateFlow()
@@ -26,6 +31,11 @@ class HistoryViewModel(attemptRepository: AttemptRepository) : ViewModel() {
         .flatMapLatest { attemptRepository.observeHistoryForDate(it) }
         .map { HistoryBuilder.group(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    // Daily excuses on the date, including revoked ones.
+    val excuses: StateFlow<List<ExcuseHistoryRow>> = _date
+        .flatMapLatest { excuseRepository.observeHistoryForDate(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onDateChange(date: LocalDate) { _date.value = date }
     fun previousDay() { _date.value = _date.value.minusDays(1) }

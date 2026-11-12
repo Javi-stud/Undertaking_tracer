@@ -142,7 +142,9 @@ class AllocationEngineTest {
 
     @Test
     fun status_exemptedStaysExempted() {
-        val s = AllocationEngine.resolveStatus(SanctionStatus.EXEMPTED, 300, 0, day, day)
+        val s = AllocationEngine.resolveStatus(
+            SanctionStatus.EXEMPTED, 300, 0, day, day, exemptedMinutes = 300
+        )
         assertEquals(SanctionStatus.EXEMPTED, s)
     }
 }

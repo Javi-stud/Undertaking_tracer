@@ -1,10 +1,14 @@
 package com.school.servicemonitor.ui.dashboard
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -13,20 +17,28 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,6 +50,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.school.servicemonitor.appContainer
+import com.school.servicemonitor.data.entity.Excuse
 import com.school.servicemonitor.data.entity.fullName
 import com.school.servicemonitor.domain.DailyStatus
 import com.school.servicemonitor.domain.DashboardEntry
@@ -57,7 +70,7 @@ private val tabs = listOf(
     DailyStatus.EXCUSED to "Excused"
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
     val container = LocalContext.current.appContainer()
@@ -68,6 +81,7 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
                     container.studentRepository,
                     container.sanctionRepository,
                     container.attemptRepository,
+                    container.excuseRepository,
                     container.settingsRepository
                 )
             }
@@ -76,10 +90,50 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tab by viewModel.tab.collectAsStateWithLifecycle()
+    val selected by viewModel.selected.collectAsStateWithLifecycle()
+    val bulk by viewModel.bulk.collectAsStateWithLifecycle()
+    val excuseState by viewModel.excuse.collectAsStateWithLifecycle()
+    val revokeState by viewModel.revoke.collectAsStateWithLifecycle()
+    val message by viewModel.message.collectAsStateWithLifecycle()
     val today = LocalDate.now()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(message) {
+        message?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.consumeMessage()
+        }
+    }
+
+    val list = state.entriesFor(tab)
+
+    // Only students who still need to pass can be selected for bulk actions.
+    val canSelect = state.isServiceDay && !state.date.isAfter(today) &&
+            (tab == DailyStatus.PENDING || tab == DailyStatus.FAILED_REPEAT)
+    val selectedEntries = if (canSelect) list.filter { it.student.id in selected } else emptyList()
+    val selecting = selectedEntries.isNotEmpty()
+
+    // Drop stale ids (for example a student who has just been excused).
+    LaunchedEffect(selectedEntries.size, selected.size) {
+        if (selectedEntries.isEmpty() && selected.isNotEmpty()) viewModel.clearSelection()
+    }
+    BackHandler(enabled = selecting) { viewModel.clearSelection() }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Dashboard") }) },
+        topBar = {
+            if (selecting) {
+                SelectionBar(
+                    count = selectedEntries.size,
+                    onClose = viewModel::clearSelection,
+                    onSelectAll = { viewModel.selectAll(list.map { it.student.id }) },
+                    onExcuse = { viewModel.startExcuse(selectedEntries) },
+                    onPass = { viewModel.startBulkPass(selectedEntries) }
+                )
+            } else {
+                TopAppBar(title = { Text("Dashboard") })
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         contentWindowInsets = NoInsets
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
@@ -127,6 +181,9 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
                             "so students who have since finished may not appear."
                 )
             }
+            if (canSelect && list.isNotEmpty() && !selecting) {
+                Note("Tip: long-press a student to select one or several for Pass or Excuse.")
+            }
 
             TabRow(selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0)) {
                 tabs.forEach { (status, label) ->
@@ -144,7 +201,6 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
                 }
             }
 
-            val list = state.entriesFor(tab)
             when {
                 state.loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
@@ -166,11 +222,64 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(list, key = { it.student.id }) { entry ->
-                        EntryCard(entry, state.date, onClick = { onOpenEntry(entry.student.id, state.date) })
+                        val id = entry.student.id
+                        val excuse = state.excuses[id]
+                        EntryCard(
+                            entry = entry,
+                            date = state.date,
+                            excuse = if (entry.status == DailyStatus.EXCUSED) excuse else null,
+                            selected = selecting && id in selected,
+                            selecting = selecting,
+                            onClick = {
+                                when {
+                                    selecting -> viewModel.toggleSelection(id)
+                                    entry.status == DailyStatus.EXCUSED -> Unit   // use Revoke excuse instead
+                                    else -> onOpenEntry(id, state.date)
+                                }
+                            },
+                            onLongClick = {
+                                if (canSelect) {
+                                    if (selecting) viewModel.toggleSelection(id)
+                                    else viewModel.startSelection(id)
+                                }
+                            },
+                            onRevoke = {
+                                excuse?.let { viewModel.startRevoke(it, entry.student.fullName) }
+                            }
+                        )
                     }
                 }
             }
         }
+    }
+
+    bulk?.let { bulkState ->
+        BulkPassDialog(
+            state = bulkState,
+            date = state.date,
+            onCommonChange = viewModel::onBulkCommonChange,
+            onOverride = viewModel::onBulkOverride,
+            onResetOverride = viewModel::onBulkResetOverride,
+            onSave = viewModel::saveBulkPass,
+            onClose = viewModel::closeBulk
+        )
+    }
+
+    excuseState?.let {
+        ExcuseDialog(
+            state = it,
+            date = state.date,
+            onSave = viewModel::saveExcuse,
+            onClose = viewModel::closeExcuse
+        )
+    }
+
+    revokeState?.let {
+        RevokeDialog(
+            state = it,
+            onConfirm = viewModel::confirmRevoke,
+            onClose = viewModel::closeRevoke
+        )
     }
 }
 
@@ -180,7 +289,7 @@ private fun emptyMessage(tab: DailyStatus, isServiceDay: Boolean): String = when
         else "This is not a service day, so no one is required to clean."
     DailyStatus.PASSED -> "No students have passed on this date."
     DailyStatus.FAILED_REPEAT -> "No failed attempts on this date."
-    DailyStatus.EXCUSED -> "No excused students. Excuses arrive in Stage 14."
+    DailyStatus.EXCUSED -> "No excused students on this date."
 }
 
 @Composable
@@ -195,13 +304,58 @@ private fun Note(text: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EntryCard(entry: DashboardEntry, date: LocalDate, onClick: () -> Unit) {
+private fun SelectionBar(
+    count: Int,
+    onClose: () -> Unit,
+    onSelectAll: () -> Unit,
+    onExcuse: () -> Unit,
+    onPass: () -> Unit
+) {
+    TopAppBar(
+        title = { Text("$count selected") },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(Icons.Default.Close, contentDescription = "Cancel selection")
+            }
+        },
+        actions = {
+            TextButton(onClick = onSelectAll) { Text("All") }
+            TextButton(onClick = onExcuse) { Text("Excuse") }
+            Button(onClick = onPass) { Text("Pass") }
+        }
+    )
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryCard(
+    entry: DashboardEntry,
+    date: LocalDate,
+    excuse: Excuse?,
+    selected: Boolean,
+    selecting: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    onRevoke: () -> Unit
+) {
     val s = entry.student
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(16.dp)
         ) {
+            if (selecting) {
+                Checkbox(checked = selected, onCheckedChange = null)
+                Spacer(Modifier.padding(end = 12.dp))
+            }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(s.fullName, style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -237,6 +391,13 @@ private fun EntryCard(entry: DashboardEntry, date: LocalDate, onClick: () -> Uni
                         color = if (late) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                if (excuse != null) {
+                    Text(
+                        "Excuse: ${excuse.reason}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    TextButton(onClick = onRevoke) { Text("Revoke excuse") }
                 }
             }
             StatusChip(

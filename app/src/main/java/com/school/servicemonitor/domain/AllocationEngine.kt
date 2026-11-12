@@ -23,7 +23,7 @@ fun SanctionRow.toBalance() = SanctionBalance(
     startDate = sanction.startDate,
     endDate = sanction.endDate,
     assignedDate = sanction.assignedDate,
-    remainingMinutes = (sanction.assignedMinutes - allocatedMinutes).coerceAtLeast(0)
+    remainingMinutes = (sanction.assignedMinutes - allocatedMinutes - exemptedMinutes).coerceAtLeast(0)
 )
 
 object AllocationEngine {
@@ -66,18 +66,24 @@ object AllocationEngine {
     fun allowedToday(requested: Int, dailyLimit: Int, alreadyCredited: Int): Int =
         minOf(requested, (dailyLimit - alreadyCredited).coerceAtLeast(0)).coerceAtLeast(0)
 
-    /** The status a sanction should have after credits change. */
+    /**
+     * The status a sanction should have after credits or exemptions change.
+     * Nothing left: EXEMPTED if an exemption cancelled part of it, otherwise COMPLETED.
+     * Something left on a closed sanction (a credit was reversed): it opens again.
+     */
     fun resolveStatus(
         current: SanctionStatus,
         assignedMinutes: Int,
         allocatedMinutes: Int,
         endDate: LocalDate,
-        today: LocalDate
+        today: LocalDate,
+        exemptedMinutes: Int = 0
     ): SanctionStatus {
-        if (current == SanctionStatus.EXEMPTED) return SanctionStatus.EXEMPTED
-        if (assignedMinutes - allocatedMinutes <= 0) return SanctionStatus.COMPLETED
-        if (current == SanctionStatus.COMPLETED) {
-            // A credit was reversed, so the sanction is open again.
+        val remaining = assignedMinutes - allocatedMinutes - exemptedMinutes
+        if (remaining <= 0) {
+            return if (exemptedMinutes > 0) SanctionStatus.EXEMPTED else SanctionStatus.COMPLETED
+        }
+        if (current == SanctionStatus.COMPLETED || current == SanctionStatus.EXEMPTED) {
             return if (endDate.isBefore(today)) SanctionStatus.OVERDUE else SanctionStatus.ACTIVE
         }
         return current

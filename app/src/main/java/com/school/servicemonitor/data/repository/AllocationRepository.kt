@@ -1,16 +1,16 @@
 package com.school.servicemonitor.data.repository
 
-import com.school.servicemonitor.data.dao.StudentCredit
-import kotlinx.coroutines.flow.Flow
 import androidx.room.withTransaction
 import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.dao.AllocationDao
 import com.school.servicemonitor.data.dao.SanctionDao
+import com.school.servicemonitor.data.dao.StudentCredit
 import com.school.servicemonitor.data.entity.SanctionHourAllocation
 import com.school.servicemonitor.data.entity.SanctionStatus
 import com.school.servicemonitor.domain.Allocation
 import com.school.servicemonitor.domain.AllocationEngine
 import com.school.servicemonitor.domain.toBalance
+import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
 class AllocationRepository(
@@ -19,6 +19,7 @@ class AllocationRepository(
     private val allocationDao: AllocationDao,
     private val settings: SettingsRepository
 ) {
+
     fun observeCreditedByStudent(date: LocalDate): Flow<List<StudentCredit>> =
         allocationDao.observeCreditedByStudent(date)
 
@@ -75,14 +76,14 @@ class AllocationRepository(
     suspend fun latestActiveAttemptId(studentId: Long): Long? =
         allocationDao.latestActiveAttemptId(studentId)
 
-    /** Completed when nothing remains; reopened when a credit was reversed. */
-    private suspend fun refreshStatuses(studentId: Long) {
+    /** Completed or exempted when nothing remains; reopened when something is owed again. */
+    suspend fun refreshStatuses(studentId: Long) {
         val today = LocalDate.now()
         val now = System.currentTimeMillis()
         sanctionDao.getRows(studentId).forEach { row ->
             val s = row.sanction
             val newStatus = AllocationEngine.resolveStatus(
-                s.status, s.assignedMinutes, row.allocatedMinutes, s.endDate, today
+                s.status, s.assignedMinutes, row.allocatedMinutes, s.endDate, today, row.exemptedMinutes
             )
             if (newStatus != s.status) {
                 sanctionDao.updateStatus(

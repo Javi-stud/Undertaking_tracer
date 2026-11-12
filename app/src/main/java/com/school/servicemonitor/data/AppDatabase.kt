@@ -9,12 +9,16 @@ import com.school.servicemonitor.data.dao.AllocationDao
 import com.school.servicemonitor.data.dao.AppSettingDao
 import com.school.servicemonitor.data.dao.AttemptDao
 import com.school.servicemonitor.data.dao.DailyRecordDao
+import com.school.servicemonitor.data.dao.ExcuseDao
+import com.school.servicemonitor.data.dao.ExemptionDao
 import com.school.servicemonitor.data.dao.SanctionDao
 import com.school.servicemonitor.data.dao.StudentDao
 import com.school.servicemonitor.data.dao.ViolationDao
 import com.school.servicemonitor.data.entity.AppSetting
 import com.school.servicemonitor.data.entity.DailyServiceRecord
+import com.school.servicemonitor.data.entity.Excuse
 import com.school.servicemonitor.data.entity.Sanction
+import com.school.servicemonitor.data.entity.SanctionExemption
 import com.school.servicemonitor.data.entity.SanctionHourAllocation
 import com.school.servicemonitor.data.entity.ServiceAttempt
 import com.school.servicemonitor.data.entity.Student
@@ -28,9 +32,11 @@ import com.school.servicemonitor.data.entity.Violation
         Sanction::class,
         DailyServiceRecord::class,
         ServiceAttempt::class,
-        SanctionHourAllocation::class
+        SanctionHourAllocation::class,
+        Excuse::class,
+        SanctionExemption::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -43,6 +49,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun allocationDao(): AllocationDao
     abstract fun dailyRecordDao(): DailyRecordDao
     abstract fun attemptDao(): AttemptDao
+    abstract fun excuseDao(): ExcuseDao
+    abstract fun exemptionDao(): ExemptionDao
 
     companion object {
         const val DB_NAME = "service_monitor.db"
