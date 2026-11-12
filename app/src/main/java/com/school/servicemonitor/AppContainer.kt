@@ -66,6 +66,8 @@ class AppContainer(context: Context) {
         ExcuseRepository(
             db = database,
             excuseDao = database.excuseDao(),
+            extensionDao = database.excuseExtensionDao(),
+            historyDao = database.sanctionHistoryDao(),
             attemptDao = database.attemptDao(),
             recordDao = database.dailyRecordDao(),
             studentDao = database.studentDao(),

@@ -11,6 +11,7 @@ import com.school.servicemonitor.data.dao.AttemptDao
 import com.school.servicemonitor.data.dao.DailyRecordDao
 import com.school.servicemonitor.data.dao.DeadlineEventDao
 import com.school.servicemonitor.data.dao.ExcuseDao
+import com.school.servicemonitor.data.dao.ExcuseExtensionDao
 import com.school.servicemonitor.data.dao.ExemptionDao
 import com.school.servicemonitor.data.dao.SanctionDao
 import com.school.servicemonitor.data.dao.SanctionHistoryDao
@@ -20,6 +21,7 @@ import com.school.servicemonitor.data.entity.AppSetting
 import com.school.servicemonitor.data.entity.DailyServiceRecord
 import com.school.servicemonitor.data.entity.DeadlineRepeatEvent
 import com.school.servicemonitor.data.entity.Excuse
+import com.school.servicemonitor.data.entity.ExcuseExtension
 import com.school.servicemonitor.data.entity.Sanction
 import com.school.servicemonitor.data.entity.SanctionExemption
 import com.school.servicemonitor.data.entity.SanctionHistory
@@ -40,9 +42,10 @@ import com.school.servicemonitor.data.entity.Violation
         Excuse::class,
         SanctionExemption::class,
         DeadlineRepeatEvent::class,
-        SanctionHistory::class
+        SanctionHistory::class,
+        ExcuseExtension::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -59,6 +62,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun exemptionDao(): ExemptionDao
     abstract fun deadlineEventDao(): DeadlineEventDao
     abstract fun sanctionHistoryDao(): SanctionHistoryDao
+    abstract fun excuseExtensionDao(): ExcuseExtensionDao
 
     companion object {
         const val DB_NAME = "service_monitor.db"

@@ -117,4 +117,7 @@ interface SanctionDao {
         """
     )
     suspend fun getAllRowsForActiveStudents(): List<SanctionRow>
+
+    @Query("UPDATE sanctions SET end_date = :endDate WHERE id = :id")
+    suspend fun updateEndDate(id: Long, endDate: java.time.LocalDate)
 }

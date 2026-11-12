@@ -22,4 +22,26 @@ object ScheduleCalculator {
 
     fun isServiceDay(date: LocalDate, serviceDays: Set<DayOfWeek>): Boolean =
         date.dayOfWeek in serviceDays
+
+    /** The first service day AFTER [date]. Friday -> Monday, Saturday -> Monday. */
+    fun nextServiceDay(date: LocalDate, serviceDays: Set<DayOfWeek>): LocalDate {
+        var d = date.plusDays(1)
+        var guard = 0
+        while (!isServiceDay(d, serviceDays) && guard < 14) {
+            d = d.plusDays(1)
+            guard++
+        }
+        return d
+    }
+
+    /** The last service day BEFORE [date]. Monday -> Friday. */
+    fun previousServiceDay(date: LocalDate, serviceDays: Set<DayOfWeek>): LocalDate {
+        var d = date.minusDays(1)
+        var guard = 0
+        while (!isServiceDay(d, serviceDays) && guard < 14) {
+            d = d.minusDays(1)
+            guard++
+        }
+        return d
+    }
 }

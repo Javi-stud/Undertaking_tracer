@@ -85,7 +85,9 @@ fun ExcuseDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    "A daily excuse deducts no hours and cancels no sanction. " +
+                    "A daily excuse deducts no hours and cancels no sanction. Each active sanction's " +
+                            "deadline moves one school day later (weekends are skipped). " +
+                            "Revoking the excuse moves it back." +
                             "The student returns to the schedule on the next school day.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -310,7 +310,14 @@ class DashboardViewModel(
                     .associateBy { it.studentId }
                 val lines = s.rows.map { row ->
                     when (val out = outcomes[row.studentId]?.outcome) {
-                        ExcuseOutcome.Saved -> BulkResultLine(row.name, true, "Excused. No hours were deducted.")
+                        ExcuseOutcome.Saved -> {
+                            val moved = outcomes[row.studentId]?.extendedCount ?: 0
+                            BulkResultLine(
+                                row.name, true,
+                                "Excused. No hours were deducted." +
+                                        if (moved > 0) " Deadline moved 1 school day on $moved sanction(s)." else ""
+                            )
+                        }
                         is ExcuseOutcome.Rejected -> BulkResultLine(row.name, false, out.message)
                         null -> BulkResultLine(row.name, false, "No result.")
                     }

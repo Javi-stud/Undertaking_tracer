@@ -5,17 +5,26 @@ import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.dao.AttemptDao
 import com.school.servicemonitor.data.dao.DailyRecordDao
 import com.school.servicemonitor.data.dao.ExcuseDao
+import com.school.servicemonitor.data.dao.ExcuseExtensionDao
 import com.school.servicemonitor.data.dao.SanctionDao
+import com.school.servicemonitor.data.dao.SanctionHistoryDao
 import com.school.servicemonitor.data.dao.StudentDao
 import com.school.servicemonitor.data.entity.AttemptResultType
 import com.school.servicemonitor.data.entity.AttemptState
 import com.school.servicemonitor.data.entity.Excuse
+import com.school.servicemonitor.data.entity.ExcuseExtension
 import com.school.servicemonitor.data.entity.ExcuseHistoryRow
+import com.school.servicemonitor.data.entity.SanctionHistory
+import com.school.servicemonitor.data.entity.SanctionHistoryType
+import com.school.servicemonitor.data.entity.SanctionStatus
 import com.school.servicemonitor.data.entity.StudentStatus
 import com.school.servicemonitor.domain.AllocationEngine
+import com.school.servicemonitor.domain.ExtensionPlanner
 import com.school.servicemonitor.domain.ScheduleCalculator
 import com.school.servicemonitor.domain.toBalance
+import com.school.servicemonitor.ui.components.display
 import kotlinx.coroutines.flow.Flow
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.util.UUID
 
@@ -24,11 +33,18 @@ sealed interface ExcuseOutcome {
     data class Rejected(val message: String) : ExcuseOutcome
 }
 
-data class ExcuseItemResult(val studentId: Long, val outcome: ExcuseOutcome)
+/** [extendedCount] = how many sanctions had their deadline moved by this excuse. */
+data class ExcuseItemResult(
+    val studentId: Long,
+    val outcome: ExcuseOutcome,
+    val extendedCount: Int = 0
+)
 
 class ExcuseRepository(
     private val db: AppDatabase,
     private val excuseDao: ExcuseDao,
+    private val extensionDao: ExcuseExtensionDao,
+    private val historyDao: SanctionHistoryDao,
     private val attemptDao: AttemptDao,
     private val recordDao: DailyRecordDao,
     private val studentDao: StudentDao,
@@ -47,8 +63,8 @@ class ExcuseRepository(
         excuseDao.observeHistoryForDate(date)
 
     /**
-     * Daily excuse for one or many students (one student = a single excuse).
-     * A separate excuse row is saved per student. No hours are deducted and no sanction is cancelled.
+     * Daily excuse for one or many students. No hours are deducted and no sanction is cancelled,
+     * but each qualifying sanction's deadline moves one school day later (never a weekend day).
      * A student who cannot be excused is reported and nothing is written for them.
      * If something unexpected throws, the whole batch is rolled back.
      */
@@ -67,15 +83,12 @@ class ExcuseRepository(
         val batchId = if (studentIds.size > 1) UUID.randomUUID().toString() else null
 
         studentIds.map { id ->
-            ExcuseItemResult(
-                id,
-                if (dayError != null) ExcuseOutcome.Rejected(dayError)
-                else excuseOne(id, date, clean, batchId)
-            )
+            if (dayError != null) ExcuseItemResult(id, ExcuseOutcome.Rejected(dayError))
+            else excuseOne(id, date, clean, batchId)
         }
     }
 
-    /** Revokes an excuse (soft). The row stays, stamped with the time and the reason. */
+    /** Revokes an excuse (soft) and undoes the deadline extensions it caused. */
     suspend fun revoke(excuseId: Long, reason: String): ExcuseOutcome = db.withTransaction {
         val clean = reason.trim()
         if (clean.isEmpty()) {
@@ -87,17 +100,19 @@ class ExcuseRepository(
             return@withTransaction ExcuseOutcome.Rejected("This excuse was already revoked.")
         }
 
-        excuseDao.revoke(excuseId, System.currentTimeMillis(), clean)
+        val now = System.currentTimeMillis()
+        excuseDao.revoke(excuseId, now, clean)
+        revertExtensions(excuseId, excuse.excuseDate, now)
         sync.refresh(sync.ensureRecord(excuse.studentId, excuse.excuseDate))
         ExcuseOutcome.Saved
     }
 
+    private suspend fun serviceDays(): Set<DayOfWeek> =
+        ScheduleCalculator.parseServiceDays(settings.getString(SettingsRepository.KEY_SERVICE_DAYS))
+
     private suspend fun dayError(date: LocalDate): String? {
         if (date.isAfter(LocalDate.now())) return "Future dates cannot be excused yet."
-        val days = ScheduleCalculator.parseServiceDays(
-            settings.getString(SettingsRepository.KEY_SERVICE_DAYS)
-        )
-        if (!ScheduleCalculator.isServiceDay(date, days)) {
+        if (!ScheduleCalculator.isServiceDay(date, serviceDays())) {
             return "This is not a service day, so no excuse is needed."
         }
         return null
@@ -108,12 +123,11 @@ class ExcuseRepository(
         date: LocalDate,
         reason: String,
         batchId: String?
-    ): ExcuseOutcome {
-        val student = studentDao.getById(studentId)
-            ?: return ExcuseOutcome.Rejected("Student not found.")
-        if (student.status != StudentStatus.ACTIVE) {
-            return ExcuseOutcome.Rejected("Archived students cannot be excused.")
-        }
+    ): ExcuseItemResult {
+        fun reject(message: String) = ExcuseItemResult(studentId, ExcuseOutcome.Rejected(message))
+
+        val student = studentDao.getById(studentId) ?: return reject("Student not found.")
+        if (student.status != StudentStatus.ACTIVE) return reject("Archived students cannot be excused.")
 
         val existing = recordDao.find(studentId, date)
         if (existing != null) {
@@ -121,28 +135,88 @@ class ExcuseRepository(
                 it.result == AttemptResultType.PASS && it.recordState == AttemptState.RECORDED
             }
             if (passed) {
-                return ExcuseOutcome.Rejected("Already passed on this date. Void that attempt first if it was a mistake.")
+                return reject("Already passed on this date. Void that attempt first if it was a mistake.")
             }
         }
-        if (excuseDao.findActive(studentId, date) != null) {
-            return ExcuseOutcome.Rejected("Already excused on this date.")
-        }
+        if (excuseDao.findActive(studentId, date) != null) return reject("Already excused on this date.")
 
         val balances = sanctionDao.getRows(studentId).map { it.toBalance() }
         if (AllocationEngine.allocate(balances, date, 1).isEmpty()) {
-            return ExcuseOutcome.Rejected("Not required to clean on this date, so there is nothing to excuse.")
+            return reject("Not required to clean on this date, so there is nothing to excuse.")
         }
 
-        excuseDao.insert(
+        val now = System.currentTimeMillis()
+        val excuseId = excuseDao.insert(
             Excuse(
                 studentId = studentId,
                 excuseDate = date,
                 reason = reason,
                 bulkBatchId = batchId,
-                createdAt = System.currentTimeMillis()
+                createdAt = now
             )
         )
+        val extended = extendDeadlines(studentId, excuseId, date, now)
         sync.refresh(sync.ensureRecord(studentId, date))
-        return ExcuseOutcome.Saved
+        return ExcuseItemResult(studentId, ExcuseOutcome.Saved, extended)
+    }
+
+    /** Moves each qualifying sanction's deadline one school day later and records it. */
+    private suspend fun extendDeadlines(studentId: Long, excuseId: Long, date: LocalDate, now: Long): Int {
+        val shifts = ExtensionPlanner.plan(
+            rows = sanctionDao.getRows(studentId),
+            excuseDate = date,
+            today = LocalDate.now(),
+            serviceDays = serviceDays()
+        )
+        for (shift in shifts) {
+            sanctionDao.updateEndDate(shift.sanctionId, shift.newEnd)
+            extensionDao.insert(
+                ExcuseExtension(
+                    excuseId = excuseId,
+                    sanctionId = shift.sanctionId,
+                    oldEndDate = shift.oldEnd,
+                    newEndDate = shift.newEnd,
+                    createdAt = now
+                )
+            )
+            historyDao.insert(
+                SanctionHistory(
+                    sanctionId = shift.sanctionId,
+                    eventType = SanctionHistoryType.DEADLINE_EXTENDED,
+                    details = "Deadline moved from ${shift.oldEnd.display()} to ${shift.newEnd.display()} " +
+                            "because of an excuse on ${date.display()}.",
+                    createdAt = now
+                )
+            )
+        }
+        return shifts.size
+    }
+
+    /** Undoes the extensions of a revoked excuse. Sanctions that are no longer ACTIVE are left alone. */
+    private suspend fun revertExtensions(excuseId: Long, date: LocalDate, now: Long) {
+        val days = serviceDays()
+        for (ext in extensionDao.activeForExcuse(excuseId)) {
+            extensionDao.markReverted(ext.id, now)
+            val sanction = sanctionDao.getById(ext.sanctionId) ?: continue
+            if (sanction.status != SanctionStatus.ACTIVE) continue
+
+            val restored = ExtensionPlanner.revertedEnd(
+                current = sanction.endDate,
+                oldEnd = ext.oldEndDate,
+                newEnd = ext.newEndDate,
+                start = sanction.startDate,
+                serviceDays = days
+            )
+            sanctionDao.updateEndDate(sanction.id, restored)
+            historyDao.insert(
+                SanctionHistory(
+                    sanctionId = sanction.id,
+                    eventType = SanctionHistoryType.DEADLINE_EXTENSION_REVERTED,
+                    details = "Excuse of ${date.display()} was revoked. " +
+                            "Deadline moved from ${sanction.endDate.display()} back to ${restored.display()}.",
+                    createdAt = now
+                )
+            )
+        }
     }
 }
