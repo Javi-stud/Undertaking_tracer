@@ -1,5 +1,6 @@
 package com.school.servicemonitor.ui.navigation
 
+import com.school.servicemonitor.ui.reports.ReportsScreen
 import com.school.servicemonitor.ui.activity.ActivityLogScreen
 import com.school.servicemonitor.ui.deadlines.ActionRequiredScreen
 import com.school.servicemonitor.ui.history.HistoryScreen
@@ -176,7 +177,7 @@ fun AppNavigation() {
                 )
             }
             composable(Routes.REPORTS) {
-                PlaceholderScreen("Reports", "PDF and Word reports arrive in Stage 17.")
+                ReportsScreen()
             }
             composable(Routes.SETTINGS) {
                 PlaceholderScreen("Settings and Backup", "Settings and database backup arrive in Stage 18.")

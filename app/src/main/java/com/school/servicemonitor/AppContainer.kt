@@ -1,5 +1,6 @@
 package com.school.servicemonitor
 
+import com.school.servicemonitor.data.repository.ReportRepository
 import android.content.Context
 import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.repository.ActivityLogger
@@ -113,6 +114,16 @@ class AppContainer(context: Context) {
             sanctionDao = database.sanctionDao(),
             studentDao = database.studentDao(),
             logger = activityLogger
+        )
+    val reportRepository: ReportRepository =
+        ReportRepository(
+            students = studentRepository,
+            sanctions = sanctionRepository,
+            attempts = attemptRepository,
+            excuses = excuseRepository,
+            exemptions = exemptionRepository,
+            deadlines = deadlineRepository,
+            settings = settingsRepository
         )
 }
 
