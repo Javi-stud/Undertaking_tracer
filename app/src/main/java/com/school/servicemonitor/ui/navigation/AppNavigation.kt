@@ -1,5 +1,6 @@
 package com.school.servicemonitor.ui.navigation
 
+import com.school.servicemonitor.ui.deadlines.ActionRequiredScreen
 import com.school.servicemonitor.ui.history.HistoryScreen
 import com.school.servicemonitor.ui.attempts.AttemptScreen
 import java.time.LocalDate
@@ -40,6 +41,7 @@ import com.school.servicemonitor.ui.students.StudentListScreen
 import com.school.servicemonitor.ui.students.StudentProfileScreen
 
 object Routes {
+    const val ACTION_REQUIRED = "action_required"
     const val DASHBOARD = "dashboard"
     const val STUDENTS = "students"
     const val SANCTIONS = "sanctions"
@@ -115,7 +117,14 @@ fun AppNavigation() {
         ) {
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
-                    onOpenEntry = { id, date -> navController.navigate(Routes.attempt(id, date)) }
+                    onOpenEntry = { id, date -> navController.navigate(Routes.attempt(id, date)) },
+                    onOpenActionRequired = { navController.navigate(Routes.ACTION_REQUIRED) }
+                )
+            }
+            composable(Routes.ACTION_REQUIRED) {
+                ActionRequiredScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenStudent = { id -> navController.navigate(Routes.studentProfile(id)) }
                 )
             }
 

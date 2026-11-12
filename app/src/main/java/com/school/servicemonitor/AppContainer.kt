@@ -1,5 +1,6 @@
 package com.school.servicemonitor
 
+import com.school.servicemonitor.data.repository.DeadlineRepository
 import android.content.Context
 import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.repository.AllocationRepository
@@ -80,6 +81,14 @@ class AppContainer(context: Context) {
             sanctionDao = database.sanctionDao(),
             studentDao = database.studentDao(),
             allocationRepository = allocationRepository
+        )
+    val deadlineRepository: DeadlineRepository =
+        DeadlineRepository(
+            db = database,
+            eventDao = database.deadlineEventDao(),
+            historyDao = database.sanctionHistoryDao(),
+            sanctionDao = database.sanctionDao(),
+            studentDao = database.studentDao()
         )
 }
 

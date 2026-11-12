@@ -72,7 +72,10 @@ private val tabs = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
+fun DashboardScreen(
+    onOpenEntry: (Long, LocalDate) -> Unit,
+    onOpenActionRequired: () -> Unit
+) {
     val container = LocalContext.current.appContainer()
     val viewModel: DashboardViewModel = viewModel(
         factory = viewModelFactory {
@@ -82,12 +85,14 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
                     container.sanctionRepository,
                     container.attemptRepository,
                     container.excuseRepository,
-                    container.settingsRepository
+                    container.settingsRepository,
+                    container.deadlineRepository
                 )
             }
         }
     )
 
+    val pendingRepeats by viewModel.pendingRepeats.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tab by viewModel.tab.collectAsStateWithLifecycle()
     val selected by viewModel.selected.collectAsStateWithLifecycle()
@@ -184,6 +189,12 @@ fun DashboardScreen(onOpenEntry: (Long, LocalDate) -> Unit) {
             if (canSelect && list.isNotEmpty() && !selecting) {
                 Note("Tip: long-press a student to select one or several for Pass or Excuse.")
             }
+
+            if (pendingRepeats > 0) {
+                RepeatBanner(count = pendingRepeats, onOpen = onOpenActionRequired)
+            }
+
+
 
             TabRow(selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0)) {
                 tabs.forEach { (status, label) ->
@@ -418,6 +429,26 @@ private fun EntryCard(
                     else -> MaterialTheme.colorScheme.onSecondaryContainer
                 }
             )
+        }
+    }
+}
+@Composable
+private fun RepeatBanner(count: Int, onOpen: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp, end = 4.dp)
+        ) {
+            Text(
+                "$count overdue sanction${if (count == 1) "" else "s"} need a repeat decision.",
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onOpen) { Text("Review") }
         }
     }
 }

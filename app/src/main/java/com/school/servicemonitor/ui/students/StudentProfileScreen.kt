@@ -269,6 +269,8 @@ private fun ProfileContent(
             }
         }
 
+        StudentDeadlineSection(studentId = student.id)
+
         StudentExcusesSection(studentId = student.id, canGrant = !isArchived)
 
         StudentAttendanceSection(studentId = student.id)
@@ -386,6 +388,13 @@ private fun SanctionItem(row: SanctionRow) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (s.parentSanctionId != null) {
+            Text(
+                "Repeated sanction (linked to an earlier one)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 

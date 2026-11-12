@@ -90,4 +90,31 @@ interface SanctionDao {
 
     @Query("SELECT COUNT(*) FROM sanctions WHERE student_id = :studentId")
     suspend fun countByStudent(studentId: Long): Int
+
+    @Query("SELECT * FROM sanctions WHERE id = :id")
+    suspend fun getById(id: Long): Sanction?
+
+    // One-time read of every sanction of every active student, for the deadline scan.
+    @Query(
+        """
+        SELECT s.*,
+               v.name AS violation_name,
+               COALESCE((
+                   SELECT SUM(a.allocated_minutes)
+                   FROM sanction_hour_allocations a
+                   WHERE a.sanction_id = s.id AND a.reversed_at IS NULL
+               ), 0) AS allocated_minutes,
+               COALESCE((
+                   SELECT SUM(x.exempted_minutes)
+                   FROM sanction_exemptions x
+                   WHERE x.sanction_id = s.id
+               ), 0) AS exempted_minutes
+        FROM sanctions s
+        INNER JOIN violations v ON v.id = s.violation_id
+        INNER JOIN students st ON st.id = s.student_id
+        WHERE st.status = 'ACTIVE'
+        ORDER BY s.end_date ASC, s.assigned_date ASC, s.id ASC
+        """
+    )
+    suspend fun getAllRowsForActiveStudents(): List<SanctionRow>
 }

@@ -19,5 +19,8 @@ class App : Application() {
 
         // Create default settings the first time the app runs.
         appScope.launch { container.settingsRepository.ensureDefaults() }
+
+        // Check sanction deadlines now, and again whenever sanctions or credits change.
+        container.deadlineRepository.startMonitoring(appScope)
     }
 }

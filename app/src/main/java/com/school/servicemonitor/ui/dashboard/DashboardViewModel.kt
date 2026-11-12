@@ -1,5 +1,7 @@
 package com.school.servicemonitor.ui.dashboard
 
+import com.school.servicemonitor.data.repository.DeadlineRepository
+import kotlinx.coroutines.flow.map
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.school.servicemonitor.data.entity.Excuse
@@ -101,7 +103,8 @@ class DashboardViewModel(
     sanctionRepository: SanctionRepository,
     private val attemptRepository: AttemptRepository,
     private val excuseRepository: ExcuseRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val deadlineRepository: DeadlineRepository
 ) : ViewModel() {
 
     private val _date = MutableStateFlow(LocalDate.now())
@@ -124,6 +127,24 @@ class DashboardViewModel(
 
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
+
+    // How many overdue sanctions are waiting for a repeat decision.
+    val pendingRepeats: StateFlow<Int> = deadlineRepository.observePending()
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+
+    init {
+        // Re-check deadlines whenever the Dashboard opens (covers a date change while the app was open).
+        viewModelScope.launch {
+            try {
+                deadlineRepository.scan()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // The background monitor will try again on the next change.
+            }
+        }
+    }
 
     // Rebuilds when the date changes OR any student, sanction, daily record, excuse or setting changes.
     val state: StateFlow<DashboardUiState> = _date
