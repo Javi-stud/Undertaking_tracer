@@ -35,7 +35,8 @@ class DeadlineRepository(
     private val eventDao: DeadlineEventDao,
     private val historyDao: SanctionHistoryDao,
     private val sanctionDao: SanctionDao,
-    private val studentDao: StudentDao
+    private val studentDao: StudentDao,
+    private val logger: ActivityLogger
 ) {
 
     fun observePending(): Flow<List<DeadlineEventRow>> = eventDao.observePending()
@@ -174,6 +175,10 @@ class DeadlineRepository(
                     createdAt = now
                 )
             )
+            logger.log(
+                "SANCTION", newId, "REPEAT_CONFIRMED", original.studentId,
+                "Repeat of ${formatMinutes(minutes)} confirmed, ${newStart.display()} to ${newEnd.display()}."
+            )
             RepeatOutcome.Saved(newId)
         }
 
@@ -198,6 +203,11 @@ class DeadlineRepository(
                 details = "Repeat dismissed: $clean",
                 createdAt = now
             )
+        )
+        logger.log(
+            "SANCTION", event.originalSanctionId, "REPEAT_DISMISSED",
+            sanctionDao.getById(event.originalSanctionId)?.studentId,
+            "Repeat dismissed: $clean"
         )
         RepeatOutcome.Saved(0L)
     }

@@ -48,5 +48,6 @@ fun AttemptLine(a: ServiceAttempt, modifier: Modifier = Modifier) {
         )
         a.failReason?.let { Text("Reason: $it", style = MaterialTheme.typography.bodySmall) }
         a.voidReason?.let { Text("Void reason: $it", style = MaterialTheme.typography.bodySmall) }
+        a.voidedAt?.let { Text("Voided: ${formatTimestamp(it)}", style = MaterialTheme.typography.bodySmall) }
     }
 }

@@ -1,5 +1,6 @@
 package com.school.servicemonitor.data.repository
 
+import com.school.servicemonitor.ui.components.display
 import androidx.room.withTransaction
 import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.data.dao.ExemptionDao
@@ -24,7 +25,8 @@ class ExemptionRepository(
     private val exemptionDao: ExemptionDao,
     private val sanctionDao: SanctionDao,
     private val studentDao: StudentDao,
-    private val allocationRepository: AllocationRepository
+    private val allocationRepository: AllocationRepository,
+    private val logger: ActivityLogger
 ) {
 
     fun observeForStudent(studentId: Long): Flow<List<ExemptionRow>> =
@@ -82,6 +84,12 @@ class ExemptionRepository(
                 approvalDate = approvalDate,
                 createdAt = System.currentTimeMillis()
             )
+        )
+
+        logger.log(
+            "EXEMPTION", sanctionId, "EXEMPTION_GRANTED", studentId,
+            "Exempted ${formatMinutes(minutes)} (approved by $cleanApprover on ${approvalDate.display()}). " +
+                    "Reason: $cleanReason"
         )
         allocationRepository.refreshStatuses(studentId)
         ExemptionOutcome.Saved

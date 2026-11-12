@@ -55,6 +55,7 @@ import com.school.servicemonitor.ui.components.StatusChip
 import com.school.servicemonitor.ui.components.TimeRangeInputField
 import com.school.servicemonitor.ui.components.display
 import com.school.servicemonitor.ui.components.formatMinutes
+import com.school.servicemonitor.ui.components.formatTimestamp
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
@@ -75,6 +76,7 @@ fun AttemptScreen(
                     container.studentRepository,
                     container.sanctionRepository,
                     container.attemptRepository,
+                    container.voidRepository,
                     container.settingsRepository,
                     studentId,
                     date
@@ -83,6 +85,7 @@ fun AttemptScreen(
         }
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val voidState by viewModel.voidState.collectAsStateWithLifecycle()
     val student = state.student
     val isFuture = date.isAfter(LocalDate.now())
 
@@ -180,8 +183,8 @@ fun AttemptScreen(
                                 Text("Passed for this date", style = MaterialTheme.typography.titleMedium)
                                 Text("Credited: ${formatMinutes(passed.creditedMinutes)}")
                                 Text(
-                                    "This student is finished for today. To correct a mistake, " +
-                                            "use Void Attempt (arrives in Stage 16).",
+                                    "This student is finished for today. If this was a mistake, " +
+                                            "tap Void attempt on the attempt below.",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -258,7 +261,7 @@ fun AttemptScreen(
                             } else {
                                 state.attempts.forEachIndexed { index, attempt ->
                                     if (index > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                    AttemptItem(attempt)
+                                    AttemptItem(attempt, onVoid = { viewModel.startVoid(attempt) })
                                 }
                             }
                         }
@@ -271,6 +274,10 @@ fun AttemptScreen(
             }
         }
     }
+
+    voidState?.let {
+        VoidDialog(state = it, onConfirm = viewModel::confirmVoid, onClose = viewModel::closeVoid)
+    }
 }
 
 @Composable
@@ -279,7 +286,7 @@ private fun Warning(text: String) {
 }
 
 @Composable
-private fun AttemptItem(a: ServiceAttempt) {
+private fun AttemptItem(a: ServiceAttempt, onVoid: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -316,6 +323,12 @@ private fun AttemptItem(a: ServiceAttempt) {
         }
         a.voidReason?.let {
             Text("Void reason: $it", style = MaterialTheme.typography.bodySmall)
+        }
+        a.voidedAt?.let {
+            Text("Voided: ${formatTimestamp(it)}", style = MaterialTheme.typography.bodySmall)
+        }
+        if (a.recordState == AttemptState.RECORDED) {
+            TextButton(onClick = onVoid) { Text("Void attempt") }
         }
     }
 }

@@ -65,4 +65,17 @@ interface AttemptDao {
         """
     )
     fun observeHistoryForStudent(studentId: Long): Flow<List<AttemptHistoryRow>>
+
+    @Query("SELECT * FROM service_attempts WHERE id = :id")
+    suspend fun getById(id: Long): ServiceAttempt?
+
+    // Voiding never deletes or edits the original data: only these three columns change.
+    @Query(
+        """
+        UPDATE service_attempts
+        SET record_state = 'VOIDED', void_reason = :reason, voided_at = :now
+        WHERE id = :id AND record_state = 'RECORDED'
+        """
+    )
+    suspend fun markVoided(id: Long, reason: String, now: Long): Int
 }

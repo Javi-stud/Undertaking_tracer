@@ -37,4 +37,7 @@ interface DailyRecordDao {
         """
     )
     fun observeForDate(date: LocalDate): Flow<List<DailyRecordRow>>
+
+    @Query("SELECT * FROM daily_service_records WHERE id = :id")
+    suspend fun getById(id: Long): DailyServiceRecord?
 }

@@ -51,7 +51,10 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HistoryScreen(onOpenStudent: (Long) -> Unit) {
+fun HistoryScreen(
+    onOpenStudent: (Long) -> Unit,
+    onOpenActivityLog: () -> Unit
+) {
     val container = LocalContext.current.appContainer()
     val viewModel: HistoryViewModel = viewModel(
         factory = viewModelFactory {
@@ -63,7 +66,12 @@ fun HistoryScreen(onOpenStudent: (Long) -> Unit) {
     val excuses by viewModel.excuses.collectAsStateWithLifecycle()
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Attendance History") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Attendance History") },
+                actions = { TextButton(onClick = onOpenActivityLog) { Text("Activity log") } }
+            )
+        },
         contentWindowInsets = NoInsets
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {

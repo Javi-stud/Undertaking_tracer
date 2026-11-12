@@ -1,5 +1,6 @@
 package com.school.servicemonitor.ui.navigation
 
+import com.school.servicemonitor.ui.activity.ActivityLogScreen
 import com.school.servicemonitor.ui.deadlines.ActionRequiredScreen
 import com.school.servicemonitor.ui.history.HistoryScreen
 import com.school.servicemonitor.ui.attempts.AttemptScreen
@@ -41,6 +42,7 @@ import com.school.servicemonitor.ui.students.StudentListScreen
 import com.school.servicemonitor.ui.students.StudentProfileScreen
 
 object Routes {
+    const val ACTIVITY_LOG = "activity_log"
     const val ACTION_REQUIRED = "action_required"
     const val DASHBOARD = "dashboard"
     const val STUDENTS = "students"
@@ -162,6 +164,14 @@ fun AppNavigation() {
             }
             composable(Routes.HISTORY) {
                 HistoryScreen(
+                    onOpenStudent = { id -> navController.navigate(Routes.studentProfile(id)) },
+                    onOpenActivityLog = { navController.navigate(Routes.ACTIVITY_LOG) }
+                )
+            }
+
+            composable(Routes.ACTIVITY_LOG) {
+                ActivityLogScreen(
+                    onBack = { navController.popBackStack() },
                     onOpenStudent = { id -> navController.navigate(Routes.studentProfile(id)) }
                 )
             }

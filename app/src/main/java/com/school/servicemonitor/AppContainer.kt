@@ -1,17 +1,19 @@
 package com.school.servicemonitor
 
-import com.school.servicemonitor.data.repository.DeadlineRepository
 import android.content.Context
 import com.school.servicemonitor.data.AppDatabase
+import com.school.servicemonitor.data.repository.ActivityLogger
 import com.school.servicemonitor.data.repository.AllocationRepository
 import com.school.servicemonitor.data.repository.AttemptRepository
 import com.school.servicemonitor.data.repository.DailyRecordSync
+import com.school.servicemonitor.data.repository.DeadlineRepository
 import com.school.servicemonitor.data.repository.ExcuseRepository
 import com.school.servicemonitor.data.repository.ExemptionRepository
 import com.school.servicemonitor.data.repository.SanctionRepository
 import com.school.servicemonitor.data.repository.SettingsRepository
 import com.school.servicemonitor.data.repository.StudentRepository
 import com.school.servicemonitor.data.repository.ViolationRepository
+import com.school.servicemonitor.data.repository.VoidRepository
 
 class AppContainer(context: Context) {
 
@@ -19,6 +21,9 @@ class AppContainer(context: Context) {
 
     val settingsRepository: SettingsRepository =
         SettingsRepository(database.appSettingDao())
+
+    val activityLogger: ActivityLogger =
+        ActivityLogger(database.activityLogDao())
 
     val studentRepository: StudentRepository =
         StudentRepository(database.studentDao(), database.sanctionDao())
@@ -59,7 +64,20 @@ class AppContainer(context: Context) {
             excuseDao = database.excuseDao(),
             allocationRepository = allocationRepository,
             sync = dailyRecordSync,
-            settings = settingsRepository
+            settings = settingsRepository,
+            logger = activityLogger
+        )
+
+    val voidRepository: VoidRepository =
+        VoidRepository(
+            db = database,
+            attemptDao = database.attemptDao(),
+            recordDao = database.dailyRecordDao(),
+            allocationDao = database.allocationDao(),
+            allocationRepository = allocationRepository,
+            eventDao = database.deadlineEventDao(),
+            sync = dailyRecordSync,
+            logger = activityLogger
         )
 
     val excuseRepository: ExcuseRepository =
@@ -73,7 +91,8 @@ class AppContainer(context: Context) {
             studentDao = database.studentDao(),
             sanctionDao = database.sanctionDao(),
             sync = dailyRecordSync,
-            settings = settingsRepository
+            settings = settingsRepository,
+            logger = activityLogger
         )
 
     val exemptionRepository: ExemptionRepository =
@@ -82,15 +101,18 @@ class AppContainer(context: Context) {
             exemptionDao = database.exemptionDao(),
             sanctionDao = database.sanctionDao(),
             studentDao = database.studentDao(),
-            allocationRepository = allocationRepository
+            allocationRepository = allocationRepository,
+            logger = activityLogger
         )
+
     val deadlineRepository: DeadlineRepository =
         DeadlineRepository(
             db = database,
             eventDao = database.deadlineEventDao(),
             historyDao = database.sanctionHistoryDao(),
             sanctionDao = database.sanctionDao(),
-            studentDao = database.studentDao()
+            studentDao = database.studentDao(),
+            logger = activityLogger
         )
 }
 

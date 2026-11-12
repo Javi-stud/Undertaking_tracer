@@ -5,6 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.school.servicemonitor.data.dao.ActivityLogDao
 import com.school.servicemonitor.data.dao.AllocationDao
 import com.school.servicemonitor.data.dao.AppSettingDao
 import com.school.servicemonitor.data.dao.AttemptDao
@@ -17,6 +18,7 @@ import com.school.servicemonitor.data.dao.SanctionDao
 import com.school.servicemonitor.data.dao.SanctionHistoryDao
 import com.school.servicemonitor.data.dao.StudentDao
 import com.school.servicemonitor.data.dao.ViolationDao
+import com.school.servicemonitor.data.entity.ActivityLog
 import com.school.servicemonitor.data.entity.AppSetting
 import com.school.servicemonitor.data.entity.DailyServiceRecord
 import com.school.servicemonitor.data.entity.DeadlineRepeatEvent
@@ -43,9 +45,10 @@ import com.school.servicemonitor.data.entity.Violation
         SanctionExemption::class,
         DeadlineRepeatEvent::class,
         SanctionHistory::class,
-        ExcuseExtension::class
+        ExcuseExtension::class,
+        ActivityLog::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -63,6 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun deadlineEventDao(): DeadlineEventDao
     abstract fun sanctionHistoryDao(): SanctionHistoryDao
     abstract fun excuseExtensionDao(): ExcuseExtensionDao
+    abstract fun activityLogDao(): ActivityLogDao
 
     companion object {
         const val DB_NAME = "service_monitor.db"

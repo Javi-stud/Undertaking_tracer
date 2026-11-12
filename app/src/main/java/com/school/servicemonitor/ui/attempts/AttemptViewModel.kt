@@ -11,6 +11,8 @@ import com.school.servicemonitor.data.repository.AttemptRepository
 import com.school.servicemonitor.data.repository.SanctionRepository
 import com.school.servicemonitor.data.repository.SettingsRepository
 import com.school.servicemonitor.data.repository.StudentRepository
+import com.school.servicemonitor.data.repository.VoidOutcome
+import com.school.servicemonitor.data.repository.VoidRepository
 import com.school.servicemonitor.domain.SanctionCalculator
 import com.school.servicemonitor.domain.ScheduleCalculator
 import com.school.servicemonitor.domain.TimeRangeInput
@@ -19,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -46,10 +49,18 @@ data class AttemptUiState(
         }
 }
 
+/** The void dialog: which attempt, and whether it is saving. */
+data class VoidUiState(
+    val attempt: ServiceAttempt,
+    val saving: Boolean = false,
+    val error: String? = null
+)
+
 class AttemptViewModel(
     studentRepository: StudentRepository,
     sanctionRepository: SanctionRepository,
     private val attemptRepository: AttemptRepository,
+    private val voidRepository: VoidRepository,
     private val settingsRepository: SettingsRepository,
     private val studentId: Long,
     val date: LocalDate
@@ -67,6 +78,9 @@ class AttemptViewModel(
     )
 
     private val local = MutableStateFlow(Local())
+
+    private val _void = MutableStateFlow<VoidUiState?>(null)
+    val voidState: StateFlow<VoidUiState?> = _void.asStateFlow()
 
     val state: StateFlow<AttemptUiState> = combine(
         studentRepository.observe(studentId),
@@ -153,6 +167,44 @@ class AttemptViewModel(
                         notice = "FAIL saved. The student must repeat cleaning today."
                     )
                     is AttemptOutcome.Rejected -> it.copy(saving = false, error = outcome.message)
+                }
+            }
+        }
+    }
+
+    // ---- Void ----
+
+    fun startVoid(attempt: ServiceAttempt) { _void.value = VoidUiState(attempt) }
+
+    fun closeVoid() { _void.value = null }
+
+    fun confirmVoid(reason: String) {
+        val s = _void.value ?: return
+        if (s.saving) return
+        if (reason.isBlank()) {
+            _void.update { it?.copy(error = "A reason is required.") }
+            return
+        }
+        _void.update { it?.copy(saving = true, error = null) }
+
+        viewModelScope.launch {
+            try {
+                when (val out = voidRepository.voidAttempt(s.attempt.id, reason)) {
+                    is VoidOutcome.Voided -> {
+                        _void.value = null
+                        local.update { it.copy(notice = out.message, error = null) }
+                    }
+                    is VoidOutcome.Rejected ->
+                        _void.update { it?.copy(saving = false, error = out.message) }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _void.update {
+                    it?.copy(
+                        saving = false,
+                        error = "Could not save: ${e.message ?: "unknown error"}. Nothing was changed."
+                    )
                 }
             }
         }

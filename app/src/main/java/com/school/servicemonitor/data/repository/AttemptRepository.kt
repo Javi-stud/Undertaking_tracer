@@ -39,7 +39,8 @@ class AttemptRepository(
     private val excuseDao: ExcuseDao,
     private val allocationRepository: AllocationRepository,
     private val sync: DailyRecordSync,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val logger: ActivityLogger
 ) {
 
     fun observeDayRecords(date: LocalDate): Flow<List<DailyRecordRow>> =
@@ -107,6 +108,12 @@ class AttemptRepository(
         check(allocations.sumOf { it.minutes } == planned) { "Credit mismatch. Nothing was saved." }
 
         sync.refresh(record)
+
+        logger.log(
+            "ATTEMPT", attemptId, "ATTEMPT_PASS", studentId,
+            "PASS on $date, $start to $end (${duration} min), $planned min credited."
+        )
+
         AttemptOutcome.Saved(attemptId, planned)
     }
 
@@ -145,6 +152,12 @@ class AttemptRepository(
             )
         )
         sync.refresh(record)
+
+        logger.log(
+            "ATTEMPT", attemptId, "ATTEMPT_FAIL", studentId,
+            "FAIL on $date, $start to $end. Reason: $cleanReason"
+        )
+
         AttemptOutcome.Saved(attemptId, 0)
     }
 

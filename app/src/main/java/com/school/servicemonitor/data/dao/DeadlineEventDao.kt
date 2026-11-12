@@ -94,4 +94,12 @@ interface DeadlineEventDao {
         """
     )
     fun observeForStudent(studentId: Long): Flow<List<DeadlineEventRow>>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM deadline_repeat_events
+        WHERE original_sanction_id = :sanctionId AND status = 'CONFIRMED'
+        """
+    )
+    suspend fun countConfirmed(sanctionId: Long): Int
 }

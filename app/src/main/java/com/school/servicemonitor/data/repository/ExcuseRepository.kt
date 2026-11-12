@@ -50,7 +50,8 @@ class ExcuseRepository(
     private val studentDao: StudentDao,
     private val sanctionDao: SanctionDao,
     private val sync: DailyRecordSync,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    private val logger: ActivityLogger
 ) {
 
     fun observeActiveForDate(date: LocalDate): Flow<List<Excuse>> =
@@ -103,6 +104,12 @@ class ExcuseRepository(
         val now = System.currentTimeMillis()
         excuseDao.revoke(excuseId, now, clean)
         revertExtensions(excuseId, excuse.excuseDate, now)
+
+        logger.log(
+            "EXCUSE", excuseId, "EXCUSE_REVOKED", excuse.studentId,
+            "Excuse of ${excuse.excuseDate.display()} revoked. Reason: $clean"
+        )
+
         sync.refresh(sync.ensureRecord(excuse.studentId, excuse.excuseDate))
         ExcuseOutcome.Saved
     }
@@ -155,8 +162,14 @@ class ExcuseRepository(
                 createdAt = now
             )
         )
+
         val extended = extendDeadlines(studentId, excuseId, date, now)
         sync.refresh(sync.ensureRecord(studentId, date))
+        logger.log(
+            "EXCUSE", excuseId, "EXCUSE_CREATED", studentId,
+            "Excused on ${date.display()}: $reason" +
+                    if (extended > 0) " ($extended deadline(s) moved one school day)." else ""
+        )
         return ExcuseItemResult(studentId, ExcuseOutcome.Saved, extended)
     }
 
