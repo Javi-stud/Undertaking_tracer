@@ -70,7 +70,7 @@ abstract class AppDatabase : RoomDatabase() {
 
     companion object {
         /** Raise this by one for every schema change, and add a Migration in Migrations.kt. */
-        const val VERSION = 9
+        const val VERSION = 10
         const val DB_NAME = "service_monitor.db"
 
         /** The shared setup, including every real migration. */

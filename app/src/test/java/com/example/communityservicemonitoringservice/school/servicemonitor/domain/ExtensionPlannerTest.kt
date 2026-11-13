@@ -23,11 +23,13 @@ class ExtensionPlannerTest {
         status: SanctionStatus = SanctionStatus.ACTIVE,
         assigned: Int = 300,
         allocated: Int = 0,
+        locked: Boolean = false,
         id: Long = 1
     ) = SanctionRow(
         sanction = Sanction(
             id = id, studentId = 1, violationId = 1, baseHours = 5, multiplierApplied = 1,
             assignedMinutes = assigned, assignedDate = start, startDate = start, endDate = end,
+            deadlineLocked = locked,
             status = status, createdAt = 0L
         ),
         violationName = "Test",
@@ -66,12 +68,6 @@ class ExtensionPlannerTest {
         assertTrue(ExtensionPlanner.plan(listOf(row(end = thu.minusDays(2))), thu, thu, days).isEmpty())
 
     @Test
-    fun overdueStatus_isNotExtended() =
-        assertTrue(
-            ExtensionPlanner.plan(listOf(row(end = fri, status = SanctionStatus.OVERDUE)), thu, thu, days).isEmpty()
-        )
-
-    @Test
     fun notStartedYet_isNotExtended() =
         assertTrue(ExtensionPlanner.plan(listOf(row(end = mon, start = fri)), thu, thu, days).isEmpty())
 
@@ -88,6 +84,52 @@ class ExtensionPlannerTest {
         // The planner only moves dates; it has no way to change assigned or credited minutes.
         ExtensionPlanner.plan(listOf(row(end = fri)), thu, thu, days)
         assertEquals(300, before.outstandingMinutes)
+    }
+
+    // ---- Locked Deadlines ----
+
+    @Test
+    fun lockedSanction_isNotExtended() {
+        val lockedRow = row(end = thu, locked = true)
+        val shifts = ExtensionPlanner.plan(listOf(lockedRow), thu, thu, days)
+        assertTrue(shifts.isEmpty())
+
+        val lockedPlanned = ExtensionPlanner.plannedLocked(listOf(lockedRow), thu, thu)
+        assertEquals(1, lockedPlanned.size)
+        assertEquals(thu, lockedPlanned[0].sanction.endDate)
+    }
+
+    @Test
+    fun specifiedExample_lockedSanctionUnchangedOnExcuse() {
+        // Locked sanction 2026-11-05 to 2026-11-10, student excused on 2026-11-07, end_date stays 2026-11-10.
+        val start = LocalDate.of(2026, 11, 5)
+        val end = LocalDate.of(2026, 11, 10)
+        val excuseDate = LocalDate.of(2026, 11, 7)
+        val today = LocalDate.of(2026, 11, 6)
+
+        val r = row(end = end, start = start, locked = true)
+        val shifts = ExtensionPlanner.plan(listOf(r), excuseDate, today, days)
+        assertTrue(shifts.isEmpty())
+
+        val locked = ExtensionPlanner.plannedLocked(listOf(r), excuseDate, today)
+        assertEquals(1, locked.size)
+        assertEquals(end, locked[0].sanction.endDate)
+    }
+
+    @Test
+    fun mixedCase_normalSanctionExtended_lockedSanctionUnchanged() {
+        val normal = row(end = thu, locked = false, id = 1)
+        val locked = row(end = thu, locked = true, id = 2)
+
+        val shifts = ExtensionPlanner.plan(listOf(normal, locked), thu, thu, days)
+        assertEquals(1, shifts.size)
+        assertEquals(1L, shifts[0].sanctionId)
+        assertEquals(fri, shifts[0].newEnd)
+
+        val lockedPlanned = ExtensionPlanner.plannedLocked(listOf(normal, locked), thu, thu)
+        assertEquals(1, lockedPlanned.size)
+        assertEquals(2L, lockedPlanned[0].sanction.id)
+        assertEquals(thu, lockedPlanned[0].sanction.endDate)
     }
 
     // ---- Undoing ----

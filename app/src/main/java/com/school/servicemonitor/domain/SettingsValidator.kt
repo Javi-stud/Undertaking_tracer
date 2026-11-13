@@ -29,8 +29,8 @@ sealed interface SettingsCheck {
 
 object SettingsValidator {
 
-    const val MIN_CREDIT_MINUTES = 10
-    const val MAX_CREDIT_MINUTES = 480
+    const val MIN_CREDIT_MINUTES = 15
+    const val MAX_CREDIT_MINUTES = 240
     const val MIN_MULTIPLIER = 1
     const val MAX_MULTIPLIER = 5
 
@@ -39,9 +39,7 @@ object SettingsValidator {
         DayOfWeek.TUESDAY,
         DayOfWeek.WEDNESDAY,
         DayOfWeek.THURSDAY,
-        DayOfWeek.FRIDAY,
-        DayOfWeek.SATURDAY,
-        DayOfWeek.SUNDAY
+        DayOfWeek.FRIDAY
     )
 
     val DEFAULT_DAYS: Set<DayOfWeek> = setOf(
@@ -59,56 +57,43 @@ object SettingsValidator {
     )
 
     fun encodeDays(days: Set<DayOfWeek>): String {
-        return days.sorted().joinToString(",") { it.name.take(3) }
+        return days.filter { it != DayOfWeek.SATURDAY && it != DayOfWeek.SUNDAY }.sorted().joinToString(",") { it.name.take(3) }
     }
 
     fun parseDays(stored: String?): Set<DayOfWeek> {
-        if (stored.isNullOrBlank()) return DEFAULT_DAYS
-        val result = mutableSetOf<DayOfWeek>()
-        for (part in stored.split(",")) {
-            val token = part.trim().uppercase()
-            val day = when (token) {
-                "MON", "MONDAY" -> DayOfWeek.MONDAY
-                "TUE", "TUESDAY" -> DayOfWeek.TUESDAY
-                "WED", "WEDNESDAY" -> DayOfWeek.WEDNESDAY
-                "THU", "THURSDAY" -> DayOfWeek.THURSDAY
-                "FRI", "FRIDAY" -> DayOfWeek.FRIDAY
-                "SAT", "SATURDAY" -> DayOfWeek.SATURDAY
-                "SUN", "SUNDAY" -> DayOfWeek.SUNDAY
-                else -> null
-            }
-            if (day != null) result.add(day)
-        }
-        return if (result.isEmpty()) DEFAULT_DAYS else result
+        val parsed = ScheduleCalculator.parseServiceDays(stored)
+        val filtered = parsed.filter { it != DayOfWeek.SATURDAY && it != DayOfWeek.SUNDAY }.toSet()
+        return filtered.ifEmpty { DEFAULT_DAYS }
     }
 
     fun fromStored(creditStr: String?, multiplierStr: String?, daysStr: String?): SettingsValues {
-        val credit = creditStr?.toIntOrNull() ?: 60
-        val multiplier = multiplierStr?.toIntOrNull() ?: 2
+        val credit = creditStr?.trim()?.toIntOrNull() ?: 60
+        val multiplier = multiplierStr?.trim()?.toIntOrNull() ?: 2
+        val validCredit = if (credit in MIN_CREDIT_MINUTES..MAX_CREDIT_MINUTES) credit else 60
+        val validMultiplier = if (multiplier in MIN_MULTIPLIER..MAX_MULTIPLIER) multiplier else 2
         val days = parseDays(daysStr)
-        return SettingsValues(credit, multiplier, days)
+        return SettingsValues(validCredit, validMultiplier, days)
     }
 
     fun validate(input: SettingsInput): SettingsCheck {
-        val credit = input.creditText.toIntOrNull()
-        val multiplier = input.multiplierText.toIntOrNull()
+        val credit = input.creditText.trim().toIntOrNull()
+        val multiplier = input.multiplierText.trim().toIntOrNull()
 
         val creditError = when {
             credit == null -> "Please enter daily credit minutes."
-            credit < MIN_CREDIT_MINUTES -> "Credit minutes must be at least $MIN_CREDIT_MINUTES."
-            credit > MAX_CREDIT_MINUTES -> "Credit minutes cannot exceed $MAX_CREDIT_MINUTES."
+            credit < MIN_CREDIT_MINUTES || credit > MAX_CREDIT_MINUTES -> "Credit minutes must be between $MIN_CREDIT_MINUTES and $MAX_CREDIT_MINUTES."
             else -> null
         }
 
         val multiplierError = when {
             multiplier == null -> "Please enter the SSG multiplier."
-            multiplier < MIN_MULTIPLIER -> "Multiplier must be at least $MIN_MULTIPLIER."
-            multiplier > MAX_MULTIPLIER -> "Multiplier cannot exceed $MAX_MULTIPLIER."
+            multiplier < MIN_MULTIPLIER || multiplier > MAX_MULTIPLIER -> "Multiplier must be between $MIN_MULTIPLIER and $MAX_MULTIPLIER."
             else -> null
         }
 
-        val daysError = if (input.days.isEmpty()) {
-            "Please select at least one service day."
+        val validDays = input.days.filter { it != DayOfWeek.SATURDAY && it != DayOfWeek.SUNDAY }.toSet()
+        val daysError = if (validDays.isEmpty()) {
+            "Please select at least one valid service day."
         } else null
 
         val errors = SettingsErrors(creditError, multiplierError, daysError)
@@ -120,7 +105,7 @@ object SettingsValidator {
             SettingsValues(
                 dailyCreditMinutes = credit!!,
                 ssgMultiplier = multiplier!!,
-                serviceDays = input.days
+                serviceDays = validDays
             )
         )
     }

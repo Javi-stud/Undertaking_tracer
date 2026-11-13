@@ -8,7 +8,7 @@ import androidx.room.PrimaryKey
 
 enum class SanctionHistoryType {
     EXPIRED, REPEAT_PROPOSED, REPEAT_CONFIRMED, REPEAT_DISMISSED, REPEAT_CREATED,
-    DEADLINE_EXTENDED, DEADLINE_EXTENSION_REVERTED
+    DEADLINE_EXTENDED, DEADLINE_EXTENSION_REVERTED, DEADLINE_SKIPPED_LOCKED
 }
 
 /** An audit line about a sanction. Rows are never changed or deleted. */

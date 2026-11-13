@@ -55,6 +55,8 @@ data class Sanction(
     @ColumnInfo(name = "start_date") val startDate: LocalDate,
     @ColumnInfo(name = "end_date") val endDate: LocalDate,   // the deadline
 
+    @ColumnInfo(name = "deadline_locked") val deadlineLocked: Boolean = false,
+
     @ColumnInfo(name = "status") val status: SanctionStatus = SanctionStatus.ACTIVE,
 
     // Used in Stage 15: links a repeated sanction to the one it repeats.
@@ -72,4 +74,3 @@ data class SanctionRow(
     @ColumnInfo(name = "allocated_minutes") val allocatedMinutes: Int,
     @ColumnInfo(name = "exempted_minutes") val exemptedMinutes: Int = 0
 )
-

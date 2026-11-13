@@ -38,7 +38,8 @@ class SanctionRepository(
         studentId: Long,
         violationId: Long,
         startDate: LocalDate,
-        endDate: LocalDate
+        endDate: LocalDate,
+        deadlineLocked: Boolean = false
     ): AssignResult {
         val student = studentDao.getById(studentId)
             ?: return AssignResult.Error("Student not found.")
@@ -67,6 +68,7 @@ class SanctionRepository(
                 assignedDate = LocalDate.now(),
                 startDate = startDate,
                 endDate = endDate,
+                deadlineLocked = deadlineLocked,
                 createdAt = now
             )
         )

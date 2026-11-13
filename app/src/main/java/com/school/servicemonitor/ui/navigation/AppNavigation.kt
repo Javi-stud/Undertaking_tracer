@@ -1,5 +1,16 @@
 package com.school.servicemonitor.ui.navigation
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.filled.Menu
+import com.school.servicemonitor.ui.components.FloatingNavBar
+import com.school.servicemonitor.ui.components.NavItem
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
 import com.school.servicemonitor.ui.settings.SettingsScreen
 import com.school.servicemonitor.ui.reports.ReportsScreen
 import com.school.servicemonitor.ui.activity.ActivityLogScreen
@@ -18,8 +29,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,7 +44,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.school.servicemonitor.ui.components.PlaceholderScreen
 import com.school.servicemonitor.ui.sanctions.AssignSanctionScreen
 import com.school.servicemonitor.ui.sanctions.ViolationFormScreen
 import com.school.servicemonitor.ui.sanctions.ViolationListScreen
@@ -44,6 +52,7 @@ import com.school.servicemonitor.ui.students.StudentListScreen
 import com.school.servicemonitor.ui.students.StudentProfileScreen
 
 object Routes {
+    const val MORE = "more"
     const val ACTIVITY_LOG = "activity_log"
     const val ACTION_REQUIRED = "action_required"
     const val DASHBOARD = "dashboard"
@@ -67,50 +76,36 @@ object Routes {
     fun assignSanction(studentId: Long) = "assign_sanction/$studentId"
 }
 
-private data class TopLevelDestination(
-    val route: String,
-    val label: String,
-    val icon: ImageVector
+private val navItems = listOf(
+    NavItem(Routes.DASHBOARD, "Dashboard", Icons.Default.Home),
+    NavItem(Routes.STUDENTS, "Students", Icons.Default.Person),
+    NavItem(Routes.SANCTIONS, "Sanctions", Icons.Default.Warning),
+    NavItem(Routes.HISTORY, "History", Icons.Default.DateRange),
+    NavItem(Routes.MORE, "More", Icons.Default.Menu, setOf(Routes.REPORTS, Routes.SETTINGS))
 )
-
-private val topLevelDestinations = listOf(
-    TopLevelDestination(Routes.DASHBOARD, "Dashboard", Icons.Default.Home),
-    TopLevelDestination(Routes.STUDENTS, "Students", Icons.Default.Person),
-    TopLevelDestination(Routes.SANCTIONS, "Sanctions", Icons.Default.Warning),
-    TopLevelDestination(Routes.HISTORY, "History", Icons.Default.DateRange),
-    TopLevelDestination(Routes.REPORTS, "Reports", Icons.Default.Info),
-    TopLevelDestination(Routes.SETTINGS, "Settings", Icons.Default.Settings)
-)
-
+private val barRoutes = navItems.map { it.route }.toSet() + Routes.REPORTS + Routes.SETTINGS
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
-    val showBottomBar = topLevelDestinations.any { it.route == currentRoute }
+    val showBottomBar = currentRoute in barRoutes
 
     Scaffold(
         contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar {
-                    topLevelDestinations.forEach { destination ->
-                        NavigationBarItem(
-                            selected = currentRoute == destination.route,
-                            onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = { Icon(destination.icon, contentDescription = null) },
-                            label = { Text(destination.label, fontSize = 10.sp, maxLines = 1) }
-                        )
+                FloatingNavBar(
+                    items = navItems,
+                    currentRoute = currentRoute,
+                    onSelect = { route ->
+                        navController.navigate(route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
-                }
+                )
             }
         }
     ) { innerPadding ->
@@ -119,6 +114,39 @@ fun AppNavigation() {
             startDestination = Routes.DASHBOARD,
             modifier = Modifier.padding(innerPadding)
         ) {
+
+            composable(Routes.MORE) {
+                Column(
+                    modifier = Modifier
+                        .statusBarsPadding()
+                        .padding(16.dp)
+                ) {
+                    Text("More", style = MaterialTheme.typography.headlineMedium)
+                    Spacer(Modifier.height(12.dp))
+                    Card(
+                        onClick = { navController.navigate(Routes.REPORTS) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Reports (PDF and Word)",
+                            modifier = Modifier.padding(20.dp),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Card(
+                        onClick = { navController.navigate(Routes.SETTINGS) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "Settings and Backup",
+                            modifier = Modifier.padding(20.dp),
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+            }
+
             composable(Routes.DASHBOARD) {
                 DashboardScreen(
                     onOpenEntry = { id, date -> navController.navigate(Routes.attempt(id, date)) },

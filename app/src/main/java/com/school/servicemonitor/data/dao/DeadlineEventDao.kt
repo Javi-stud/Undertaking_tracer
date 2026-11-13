@@ -102,4 +102,14 @@ interface DeadlineEventDao {
         """
     )
     suspend fun countConfirmed(sanctionId: Long): Int
+
+    // Proposals whose sanction's deadline is no longer in the past (an excuse moved it).
+    @Query(
+        """
+        SELECT e.* FROM deadline_repeat_events e
+        INNER JOIN sanctions s ON s.id = e.original_sanction_id
+        WHERE e.status = 'DETECTED' AND s.end_date >= :today
+        """
+    )
+    suspend fun detectedNoLongerOverdue(today: java.time.LocalDate): List<DeadlineRepeatEvent>
 }

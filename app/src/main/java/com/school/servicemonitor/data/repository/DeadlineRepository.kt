@@ -71,6 +71,20 @@ class DeadlineRepository(
         val now = System.currentTimeMillis()
         var created = 0
 
+        // A deadline moved by an excuse cancels the proposal that was waiting for it.
+        for (event in eventDao.detectedNoLongerOverdue(today)) {
+            if (eventDao.markDismissed(event.id, "Deadline was extended by an excuse.", now) == 1) {
+                historyDao.insert(
+                    SanctionHistory(
+                        sanctionId = event.originalSanctionId,
+                        eventType = SanctionHistoryType.REPEAT_DISMISSED,
+                        details = "Repeat proposal cancelled: the deadline is no longer in the past.",
+                        createdAt = now
+                    )
+                )
+            }
+        }
+
         for (row in DeadlineMonitor.overdue(sanctionDao.getAllRowsForActiveStudents(), today)) {
             val s = row.sanction
             if (s.status == SanctionStatus.ACTIVE) {

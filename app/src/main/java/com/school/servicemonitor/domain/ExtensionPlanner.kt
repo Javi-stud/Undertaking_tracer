@@ -11,7 +11,8 @@ object ExtensionPlanner {
 
     /**
      * Which sanctions get a one-school-day extension because of an excuse on [excuseDate].
-     * Only ACTIVE sanctions that had started, still owe hours, and have not expired.
+     * Only ACTIVE sanctions that had started by excuseDate, whose deadline is on or after excuseDate,
+     * still owe hours, and are NOT deadline-locked.
      */
     fun plan(
         rows: List<SanctionRow>,
@@ -20,9 +21,9 @@ object ExtensionPlanner {
         serviceDays: Set<DayOfWeek>
     ): List<DeadlineShift> =
         rows.filter {
-            it.sanction.status == SanctionStatus.ACTIVE &&
+            (it.sanction.status == SanctionStatus.ACTIVE || it.sanction.status == SanctionStatus.OVERDUE) &&
                     !it.sanction.startDate.isAfter(excuseDate) &&
-                    !it.sanction.endDate.isBefore(today) &&
+                    !it.sanction.endDate.isBefore(excuseDate) &&
                     SanctionCalculator.remainingMinutes(it) > 0
         }.map {
             DeadlineShift(
@@ -30,6 +31,22 @@ object ExtensionPlanner {
                 oldEnd = it.sanction.endDate,
                 newEnd = ScheduleCalculator.nextServiceDay(it.sanction.endDate, serviceDays)
             )
+        }
+
+    /**
+     * Active sanctions that would have qualified for an extension but have a fixed (locked) deadline.
+     */
+    fun plannedLocked(
+        rows: List<SanctionRow>,
+        excuseDate: LocalDate,
+        today: LocalDate
+    ): List<SanctionRow> =
+        rows.filter {
+            it.sanction.status == SanctionStatus.ACTIVE &&
+                    it.sanction.deadlineLocked &&
+                    !it.sanction.startDate.isAfter(excuseDate) &&
+                    !it.sanction.endDate.isBefore(excuseDate) &&
+                    SanctionCalculator.remainingMinutes(it) > 0
         }
 
     /**

@@ -311,11 +311,15 @@ class DashboardViewModel(
                 val lines = s.rows.map { row ->
                     when (val out = outcomes[row.studentId]?.outcome) {
                         ExcuseOutcome.Saved -> {
-                            val moved = outcomes[row.studentId]?.extendedCount ?: 0
+                            val res = outcomes[row.studentId]
+                            val moved = res?.extendedCount ?: 0
+                            val warnings = res?.warnings.orEmpty()
+                            val warningText = if (warnings.isNotEmpty()) " " + warnings.joinToString(" ") else ""
                             BulkResultLine(
                                 row.name, true,
                                 "Excused. No hours were deducted." +
-                                        if (moved > 0) " Deadline moved 1 school day on $moved sanction(s)." else ""
+                                        if (moved > 0) " Deadline moved 1 school day on $moved sanction(s)." else "" +
+                                        warningText
                             )
                         }
                         is ExcuseOutcome.Rejected -> BulkResultLine(row.name, false, out.message)

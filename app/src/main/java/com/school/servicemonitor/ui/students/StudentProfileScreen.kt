@@ -388,6 +388,13 @@ private fun SanctionItem(row: SanctionRow) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (s.deadlineLocked) {
+            StatusChip(
+                "Fixed deadline",
+                MaterialTheme.colorScheme.tertiaryContainer,
+                MaterialTheme.colorScheme.onTertiaryContainer
+            )
+        }
         if (s.parentSanctionId != null) {
             Text(
                 "Repeated sanction (linked to an earlier one)",

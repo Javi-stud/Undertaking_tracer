@@ -22,6 +22,7 @@ data class AssignState(
     val selectedViolation: Violation? = null,
     val startDate: LocalDate = LocalDate.now(),
     val endDate: LocalDate? = null,
+    val deadlineLocked: Boolean = false,
     val multiplier: Int = 1,
     val error: String? = null,
     val saving: Boolean = false,
@@ -70,6 +71,9 @@ class AssignSanctionViewModel(
     fun onEndDateChange(date: LocalDate) =
         _state.update { it.copy(endDate = date, error = null) }
 
+    fun onDeadlineLockedChange(v: Boolean) =
+        _state.update { it.copy(deadlineLocked = v) }
+
     fun save() {
         val s = _state.value
         if (s.saving) return
@@ -88,7 +92,7 @@ class AssignSanctionViewModel(
 
         viewModelScope.launch {
             _state.update { it.copy(saving = true, error = null) }
-            when (val result = sanctionRepository.assign(studentId, violation!!.id, s.startDate, end!!)) {
+            when (val result = sanctionRepository.assign(studentId, violation!!.id, s.startDate, end!!, s.deadlineLocked)) {
                 is AssignResult.Success -> _state.update { it.copy(saving = false, saved = true) }
                 is AssignResult.Error -> _state.update { it.copy(saving = false, error = result.message) }
             }

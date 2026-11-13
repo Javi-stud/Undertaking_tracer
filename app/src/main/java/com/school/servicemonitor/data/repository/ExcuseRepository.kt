@@ -16,6 +16,7 @@ import com.school.servicemonitor.data.entity.ExcuseExtension
 import com.school.servicemonitor.data.entity.ExcuseHistoryRow
 import com.school.servicemonitor.data.entity.SanctionHistory
 import com.school.servicemonitor.data.entity.SanctionHistoryType
+import com.school.servicemonitor.data.entity.SanctionRow
 import com.school.servicemonitor.data.entity.SanctionStatus
 import com.school.servicemonitor.data.entity.StudentStatus
 import com.school.servicemonitor.domain.AllocationEngine
@@ -37,7 +38,8 @@ sealed interface ExcuseOutcome {
 data class ExcuseItemResult(
     val studentId: Long,
     val outcome: ExcuseOutcome,
-    val extendedCount: Int = 0
+    val extendedCount: Int = 0,
+    val warnings: List<String> = emptyList()
 )
 
 class ExcuseRepository(
@@ -147,7 +149,8 @@ class ExcuseRepository(
         }
         if (excuseDao.findActive(studentId, date) != null) return reject("Already excused on this date.")
 
-        val balances = sanctionDao.getRows(studentId).map { it.toBalance() }
+        val rows = sanctionDao.getRows(studentId)
+        val balances = rows.map { it.toBalance() }
         if (AllocationEngine.allocate(balances, date, 1).isEmpty()) {
             return reject("Not required to clean on this date, so there is nothing to excuse.")
         }
@@ -163,26 +166,48 @@ class ExcuseRepository(
             )
         )
 
-        val extended = extendDeadlines(studentId, excuseId, date, now)
+        val extended = extendDeadlines(rows, excuseId, date, now)
         sync.refresh(sync.ensureRecord(studentId, date))
         logger.log(
             "EXCUSE", excuseId, "EXCUSE_CREATED", studentId,
             "Excused on ${date.display()}: $reason" +
-                    if (extended > 0) " ($extended deadline(s) moved one school day)." else ""
+                    if (extended.first > 0) " (${extended.first} deadline(s) moved one school day)." else "" +
+                    if (extended.second.isNotEmpty()) " (Skipped ${extended.second.size} fixed deadline(s))." else ""
         )
-        return ExcuseItemResult(studentId, ExcuseOutcome.Saved, extended)
+        return ExcuseItemResult(studentId, ExcuseOutcome.Saved, extended.first, extended.second)
     }
 
     /** Moves each qualifying sanction's deadline one school day later and records it. */
-    private suspend fun extendDeadlines(studentId: Long, excuseId: Long, date: LocalDate, now: Long): Int {
-        val shifts = ExtensionPlanner.plan(
-            rows = sanctionDao.getRows(studentId),
-            excuseDate = date,
-            today = LocalDate.now(),
-            serviceDays = serviceDays()
-        )
+    private suspend fun extendDeadlines(
+        rows: List<SanctionRow>,
+        excuseId: Long,
+        date: LocalDate,
+        now: Long
+    ): Pair<Int, List<String>> {
+        val today = LocalDate.now()
+        val shifts = ExtensionPlanner.plan(rows, date, today, serviceDays())
+        val locked = ExtensionPlanner.plannedLocked(rows, date, today)
+        val warnings = mutableListOf<String>()
+
+        for (row in locked) {
+            val msg = "Excused on ${date.display()}, but the deadline of ${row.violationName} (${row.sanction.endDate.display()}) is fixed and was not moved."
+            warnings.add(msg)
+            historyDao.insert(
+                SanctionHistory(
+                    sanctionId = row.sanction.id,
+                    eventType = SanctionHistoryType.DEADLINE_SKIPPED_LOCKED,
+                    details = "Deadline of ${row.sanction.endDate.display()} was not moved because the deadline is fixed (locked) due to an excuse on ${date.display()}.",
+                    createdAt = now
+                )
+            )
+        }
+
         for (shift in shifts) {
             sanctionDao.updateEndDate(shift.sanctionId, shift.newEnd)
+            val s = sanctionDao.getById(shift.sanctionId)
+            if (s != null && s.status == SanctionStatus.OVERDUE && !shift.newEnd.isBefore(LocalDate.now())) {
+                sanctionDao.updateStatus(s.id, SanctionStatus.ACTIVE, null)
+            }
             extensionDao.insert(
                 ExcuseExtension(
                     excuseId = excuseId,
@@ -202,7 +227,7 @@ class ExcuseRepository(
                 )
             )
         }
-        return shifts.size
+        return Pair(shifts.size, warnings)
     }
 
     /** Undoes the extensions of a revoked excuse. Sanctions that are no longer ACTIVE are left alone. */
@@ -211,7 +236,7 @@ class ExcuseRepository(
         for (ext in extensionDao.activeForExcuse(excuseId)) {
             extensionDao.markReverted(ext.id, now)
             val sanction = sanctionDao.getById(ext.sanctionId) ?: continue
-            if (sanction.status != SanctionStatus.ACTIVE) continue
+            if (sanction.status != SanctionStatus.ACTIVE && sanction.status != SanctionStatus.OVERDUE) continue
 
             val restored = ExtensionPlanner.revertedEnd(
                 current = sanction.endDate,
