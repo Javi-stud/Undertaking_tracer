@@ -52,6 +52,7 @@ import com.school.servicemonitor.data.AppDatabase
 import com.school.servicemonitor.domain.SettingsValidator
 import com.school.servicemonitor.ui.components.NoInsets
 import com.school.servicemonitor.ui.components.formatTimestamp
+import com.school.servicemonitor.ui.theme.AppThemeColor
 import java.time.format.TextStyle
 import java.util.Locale
 
@@ -102,6 +103,27 @@ fun SettingsScreen() {
             if (state.busy) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Text(state.busyLabel, style = MaterialTheme.typography.bodySmall)
+            }
+
+            // ---------------- Appearance / Theme Color ----------------
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("App Theme Color", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Select your preferred color accent for the app interface.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppThemeColor.entries.forEach { theme ->
+                            FilterChip(
+                                selected = state.themeColor == theme,
+                                onClick = { viewModel.setThemeColor(theme) },
+                                label = { Text(theme.displayName) }
+                            )
+                        }
+                    }
+                }
             }
 
             // ---------------- Service rules ----------------

@@ -14,6 +14,7 @@ import com.school.servicemonitor.domain.SettingsErrors
 import com.school.servicemonitor.domain.SettingsInput
 import com.school.servicemonitor.domain.SettingsValidator
 import com.school.servicemonitor.domain.SettingsValues
+import com.school.servicemonitor.ui.theme.AppThemeColor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +37,8 @@ data class SettingsUiState(
     val lastBackupAt: Long? = null,
     val staged: BackupSummary? = null,
     val message: String? = null,
-    val restartRequested: Boolean = false
+    val restartRequested: Boolean = false,
+    val themeColor: AppThemeColor = AppThemeColor.VIOLET
 ) {
     /** True when the form differs from what is saved. */
     val isDirty: Boolean
@@ -68,6 +70,8 @@ class SettingsViewModel(
                     map[SettingsRepository.KEY_SERVICE_DAYS]
                 )
                 val last = map[SettingsRepository.KEY_LAST_BACKUP_AT]?.toLongOrNull()
+                val theme = AppThemeColor.fromKey(map[SettingsRepository.KEY_THEME_COLOR])
+
                 _state.update { s ->
                     if (!s.loaded) {
                         s.copy(
@@ -76,10 +80,11 @@ class SettingsViewModel(
                             multiplierText = values.ssgMultiplier.toString(),
                             days = values.serviceDays,
                             saved = values,
-                            lastBackupAt = last
+                            lastBackupAt = last,
+                            themeColor = theme
                         )
                     } else {
-                        s.copy(saved = values, lastBackupAt = last)
+                        s.copy(saved = values, lastBackupAt = last, themeColor = theme)
                     }
                 }
             }
@@ -87,6 +92,12 @@ class SettingsViewModel(
     }
 
     fun consumeMessage() { _state.update { it.copy(message = null) } }
+
+    fun setThemeColor(color: AppThemeColor) {
+        viewModelScope.launch {
+            settings.setThemeColor(color.key)
+        }
+    }
 
     // ---- Service rules ----
 

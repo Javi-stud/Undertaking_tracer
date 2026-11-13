@@ -14,11 +14,13 @@ class SettingsRepository(private val dao: AppSettingDao) {
         const val KEY_SSG_MULTIPLIER = "ssg_multiplier"
         const val KEY_SERVICE_DAYS = "service_days"
         const val KEY_LAST_BACKUP_AT = "last_backup_at"
+        const val KEY_THEME_COLOR = "theme_color"
 
         val DEFAULTS = listOf(
             AppSetting(KEY_DAILY_CREDIT_MINUTES, "60"),
             AppSetting(KEY_SSG_MULTIPLIER, "2"),
-            AppSetting(KEY_SERVICE_DAYS, "MON,TUE,WED,THU,FRI")
+            AppSetting(KEY_SERVICE_DAYS, "MON,TUE,WED,THU,FRI"),
+            AppSetting(KEY_THEME_COLOR, "VIOLET")
         )
     }
 
@@ -34,6 +36,8 @@ class SettingsRepository(private val dao: AppSettingDao) {
     suspend fun getString(key: String): String? = dao.getValue(key)
 
     suspend fun setValue(key: String, value: String) = dao.upsert(AppSetting(key, value))
+
+    suspend fun setThemeColor(colorKey: String) = setValue(KEY_THEME_COLOR, colorKey)
 
     /** Saves the three service rules together. Sanctions already assigned are not touched. */
     suspend fun saveRules(values: SettingsValues) = dao.upsertAll(
