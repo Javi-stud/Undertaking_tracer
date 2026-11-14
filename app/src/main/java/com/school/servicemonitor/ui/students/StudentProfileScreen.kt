@@ -18,7 +18,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -41,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,6 +54,8 @@ import com.school.servicemonitor.data.entity.StudentStatus
 import com.school.servicemonitor.data.entity.fullName
 import com.school.servicemonitor.domain.HourSummary
 import com.school.servicemonitor.domain.SanctionCalculator
+import com.school.servicemonitor.ui.components.HoursRing
+import com.school.servicemonitor.ui.components.InitialsAvatar
 import com.school.servicemonitor.ui.components.StatusChip
 import com.school.servicemonitor.ui.components.display
 import com.school.servicemonitor.ui.components.formatMinutes
@@ -204,41 +206,7 @@ private fun ProfileContent(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(student.fullName, style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (student.isSsg) {
-                        StatusChip(
-                            "SSG member",
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    } else {
-                        StatusChip(
-                            "Regular student",
-                            MaterialTheme.colorScheme.secondaryContainer,
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                    if (isArchived) {
-                        StatusChip(
-                            "Archived",
-                            MaterialTheme.colorScheme.errorContainer,
-                            MaterialTheme.colorScheme.onErrorContainer
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                InfoRow("Student number", student.studentNumber)
-                InfoRow("Grade level", student.gradeLevel)
-                InfoRow("Section", student.section)
-                InfoRow("SSG member", if (student.isSsg) "Yes" else "No")
-                InfoRow("Registered", student.registrationDate.display())
-            }
-        }
+        ProfileHeader(student)
 
         HoursSummaryCard(summary)
 
@@ -276,7 +244,6 @@ private fun ProfileContent(
         StudentAttendanceSection(studentId = student.id)
 
         if (isArchived) {
-
             Button(onClick = onRestore, modifier = Modifier.fillMaxWidth()) {
                 Text("Restore student")
             }
@@ -298,32 +265,80 @@ private fun ProfileContent(
 }
 
 @Composable
-private fun HoursSummaryCard(summary: HourSummary) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (summary.outstandingMinutes > 0)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.secondaryContainer
-        )
+private fun ProfileHeader(student: Student) {
+    val isArchived = student.status == StudentStatus.ARCHIVED
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
     ) {
+        InitialsAvatar(student.firstName, student.lastName, diameter = 76.dp)
+        Spacer(Modifier.height(10.dp))
+        Text(
+            student.fullName,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (student.isSsg) {
+                StatusChip(
+                    "SSG member",
+                    MaterialTheme.colorScheme.primaryContainer,
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else {
+                StatusChip(
+                    "Regular student",
+                    MaterialTheme.colorScheme.secondaryContainer,
+                    MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            if (isArchived) {
+                StatusChip(
+                    "Archived",
+                    MaterialTheme.colorScheme.errorContainer,
+                    MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
+            InfoRow("Student number", student.studentNumber)
+            InfoRow("Grade level", student.gradeLevel)
+            InfoRow("Section", student.section)
+            InfoRow("SSG member", if (student.isSsg) "Yes" else "No")
+            InfoRow("Registered", student.registrationDate.display())
+        }
+    }
+}
+
+@Composable
+private fun HoursSummaryCard(summary: HourSummary) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text("Outstanding service hours", style = MaterialTheme.typography.titleSmall)
-            Text(
-                formatMinutes(summary.outstandingMinutes),
-                style = MaterialTheme.typography.headlineMedium
-            )
+            Spacer(Modifier.height(10.dp))
+            HoursRing(summary.outstandingMinutes, summary.completedMinutes)
+            Spacer(Modifier.height(8.dp))
             Text(
                 "Across ${summary.activeSanctionCount} active sanction" +
                         if (summary.activeSanctionCount == 1) "" else "s",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
             HorizontalDivider()
             InfoRow("Completed", formatMinutes(summary.completedMinutes))
             InfoRow("Total assigned", formatMinutes(summary.totalAssignedMinutes))
-            if (summary.exemptedMinutes > 0) InfoRow("Exempted", formatMinutes(summary.exemptedMinutes))
+            if (summary.exemptedMinutes > 0) {
+                InfoRow("Exempted", formatMinutes(summary.exemptedMinutes))
+            }
         }
     }
 }

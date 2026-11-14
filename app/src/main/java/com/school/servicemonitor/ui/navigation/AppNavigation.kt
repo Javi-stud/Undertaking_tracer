@@ -1,5 +1,6 @@
 package com.school.servicemonitor.ui.navigation
 
+
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -84,6 +85,7 @@ private val navItems = listOf(
     NavItem(Routes.MORE, "More", Icons.Default.Menu, setOf(Routes.REPORTS, Routes.SETTINGS))
 )
 private val barRoutes = navItems.map { it.route }.toSet() + Routes.REPORTS + Routes.SETTINGS
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()

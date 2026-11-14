@@ -1,16 +1,19 @@
 package com.school.servicemonitor.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,10 +29,11 @@ import com.school.servicemonitor.domain.TimeRangeCalculator
 import com.school.servicemonitor.domain.TimeRangeCheck
 import com.school.servicemonitor.domain.TimeRangeInput
 import com.school.servicemonitor.domain.formatClock
+import com.school.servicemonitor.ui.theme.AppColors
 import java.time.LocalTime
 
 /**
- * Start and end time fields plus the calculated duration.
+ * Start and end time cards plus the calculated duration.
  * This only records what the operator observed. There is no timer.
  */
 @Composable
@@ -39,7 +43,7 @@ fun TimeRangeInputField(
     requiredMinutesForPass: Int,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         TimeField(
             label = "Start time",
             time = value.start,
@@ -63,35 +67,47 @@ fun TimeField(
 ) {
     val clock = ClockTime.from(time)
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.titleSmall)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            NumberDropdown(
-                selected = clock.hour12,
-                options = (1..12).toList(),
-                display = { it.toString() },
-                onPick = { onTimeChange(clock.copy(hour12 = it).toLocalTime()) }
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        border = BorderStroke(1.dp, AppColors.Border),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text(":", style = MaterialTheme.typography.titleLarge)
-            NumberDropdown(
-                selected = clock.minute,
-                options = (0..59).toList(),
-                display = { it.toString().padStart(2, '0') },
-                onPick = { onTimeChange(clock.copy(minute = it).toLocalTime()) }
-            )
-            FilterChip(
-                selected = !clock.isPm,
-                onClick = { onTimeChange(clock.copy(isPm = false).toLocalTime()) },
-                label = { Text("AM") }
-            )
-            FilterChip(
-                selected = clock.isPm,
-                onClick = { onTimeChange(clock.copy(isPm = true).toLocalTime()) },
-                label = { Text("PM") }
-            )
+            Text(time.formatClock(), style = MaterialTheme.typography.headlineMedium)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NumberDropdown(
+                    selected = clock.hour12,
+                    options = (1..12).toList(),
+                    display = { it.toString() },
+                    onPick = { onTimeChange(clock.copy(hour12 = it).toLocalTime()) }
+                )
+                Text(":", style = MaterialTheme.typography.titleLarge)
+                NumberDropdown(
+                    selected = clock.minute,
+                    options = (0..59).toList(),
+                    display = { it.toString().padStart(2, '0') },
+                    onPick = { onTimeChange(clock.copy(minute = it).toLocalTime()) }
+                )
+                FilterChip(
+                    selected = !clock.isPm,
+                    onClick = { onTimeChange(clock.copy(isPm = false).toLocalTime()) },
+                    label = { Text("AM") }
+                )
+                FilterChip(
+                    selected = clock.isPm,
+                    onClick = { onTimeChange(clock.copy(isPm = true).toLocalTime()) },
+                    label = { Text("PM") }
+                )
+            }
         }
     }
 }
@@ -104,7 +120,7 @@ private fun NumberDropdown(
     onPick: (Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    androidx.compose.foundation.layout.Box {
+    Box {
         OutlinedButton(onClick = { expanded = true }) { Text(display(selected)) }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { option ->
@@ -127,12 +143,8 @@ private fun DurationSummary(start: LocalTime, end: LocalTime, requiredMinutes: I
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(
-            "${start.formatClock()}  to  ${end.formatClock()}",
-            style = MaterialTheme.typography.bodyMedium
-        )
         when (range) {
             TimeRangeCheck.EndNotAfterStart -> Text(
                 "The end time must be later than the start time.",
@@ -140,16 +152,19 @@ private fun DurationSummary(start: LocalTime, end: LocalTime, requiredMinutes: I
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            is TimeRangeCheck.Valid -> Text(
-                "Recorded duration: ${formatMinutes(range.durationMinutes)}",
-                style = MaterialTheme.typography.titleMedium
+            is TimeRangeCheck.Valid -> StatusChip(
+                "Recorded: ${formatMinutes(range.durationMinutes)}",
+                if (pass == PassCheck.Allowed) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.errorContainer,
+                if (pass == PassCheck.Allowed) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onErrorContainer
             )
         }
         when (pass) {
             PassCheck.Allowed -> Text(
-                "PASS is allowed. Only $requiredMinutes minutes will be credited, even if the session was longer.",
+                "PASS is allowed. Only $requiredMinutes minutes are credited, even if the session was longer.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             is PassCheck.TooShort -> Text(
@@ -159,7 +174,7 @@ private fun DurationSummary(start: LocalTime, end: LocalTime, requiredMinutes: I
                 color = MaterialTheme.colorScheme.error
             )
 
-            PassCheck.InvalidRange -> Unit   // the message above already explains it
+            PassCheck.InvalidRange -> Unit
         }
     }
 }

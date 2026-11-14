@@ -4,10 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -50,6 +53,7 @@ import com.school.servicemonitor.domain.PassCheck
 import com.school.servicemonitor.domain.TimeRangeCalculator
 import com.school.servicemonitor.domain.TimeRangeCheck
 import com.school.servicemonitor.domain.formatClock
+import com.school.servicemonitor.ui.components.InitialsAvatar
 import com.school.servicemonitor.ui.components.NoInsets
 import com.school.servicemonitor.ui.components.StatusChip
 import com.school.servicemonitor.ui.components.TimeRangeInputField
@@ -130,16 +134,22 @@ fun AttemptScreen(
                         .verticalScroll(rememberScrollState())
                         .imePadding()
                         .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    // Student header
                     Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    student.fullName,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                InitialsAvatar(student.firstName, student.lastName, diameter = 52.dp)
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(student.fullName, style = MaterialTheme.typography.titleLarge)
+                                    Text(
+                                        "No. ${student.studentNumber}  |  ${student.gradeLevel} - ${student.section}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 if (student.isSsg) {
                                     StatusChip(
                                         "SSG",
@@ -148,16 +158,19 @@ fun AttemptScreen(
                                     )
                                 }
                             }
+                            Spacer(Modifier.height(12.dp))
                             Text(
-                                "No. ${student.studentNumber}  |  ${student.gradeLevel} - ${student.section}",
-                                style = MaterialTheme.typography.bodyMedium
+                                formatMinutes(state.outstandingMinutes),
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                "Outstanding: ${formatMinutes(state.outstandingMinutes)} " +
-                                        "(${state.activeSanctionCount} active sanction" +
-                                        if (state.activeSanctionCount == 1) ")" else "s)",
-                                style = MaterialTheme.typography.titleMedium
+                                "outstanding across ${state.activeSanctionCount} active sanction" +
+                                        if (state.activeSanctionCount == 1) "" else "s",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(Modifier.height(6.dp))
                             Text(
                                 date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()) +
                                         ", " + date.display(),
@@ -196,59 +209,56 @@ fun AttemptScreen(
                     }
 
                     state.notice?.let {
-                        Text(it, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            it,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.titleSmall
+                        )
                     }
 
                     if (canRecord) {
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Text(
-                                    "Enter the times you observed. There is no timer: this only records " +
-                                            "what you saw.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                TimeRangeInputField(
-                                    value = state.time,
-                                    onValueChange = viewModel::onTimeChange,
-                                    requiredMinutesForPass = state.requiredMinutes
-                                )
-                                OutlinedTextField(
-                                    value = state.failReason,
-                                    onValueChange = viewModel::onReasonChange,
-                                    label = { Text("Reason (required for FAIL)") },
-                                    isError = state.reasonError != null,
-                                    supportingText = state.reasonError?.let { { Text(it) } },
-                                    keyboardOptions = KeyboardOptions(
-                                        capitalization = KeyboardCapitalization.Sentences
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                state.error?.let {
-                                    Text(it, color = MaterialTheme.colorScheme.error)
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(
-                                        onClick = viewModel::pass,
-                                        enabled = passAllowed && !state.saving,
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text("PASS") }
-                                    Button(
-                                        onClick = viewModel::fail,
-                                        enabled = range is TimeRangeCheck.Valid && !state.saving,
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.error
-                                        ),
-                                        modifier = Modifier.weight(1f)
-                                    ) { Text("FAIL / REPEAT") }
-                                }
-                            }
+                        Text(
+                            "Enter the times you observed. There is no timer: this only records what you saw.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TimeRangeInputField(
+                            value = state.time,
+                            onValueChange = viewModel::onTimeChange,
+                            requiredMinutesForPass = state.requiredMinutes
+                        )
+                        OutlinedTextField(
+                            value = state.failReason,
+                            onValueChange = viewModel::onReasonChange,
+                            label = { Text("Reason (required for FAIL)") },
+                            isError = state.reasonError != null,
+                            supportingText = state.reasonError?.let { { Text(it) } },
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Sentences
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(
+                                onClick = viewModel::pass,
+                                enabled = passAllowed && !state.saving,
+                                modifier = Modifier.weight(1f).height(56.dp)
+                            ) { Text("PASS", style = MaterialTheme.typography.titleMedium) }
+                            Button(
+                                onClick = viewModel::fail,
+                                enabled = range is TimeRangeCheck.Valid && !state.saving,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                ),
+                                modifier = Modifier.weight(1f).height(56.dp)
+                            ) { Text("FAIL", style = MaterialTheme.typography.titleMedium) }
                         }
                     }
 
+                    // Attempts
                     Card(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Text("Attempts on this date", style = MaterialTheme.typography.titleMedium)
@@ -270,6 +280,7 @@ fun AttemptScreen(
                     OutlinedButton(onClick = onOpenProfile, modifier = Modifier.fillMaxWidth()) {
                         Text("Open student profile")
                     }
+                    Spacer(Modifier.height(80.dp))
                 }
             }
         }
@@ -318,12 +329,8 @@ private fun AttemptItem(a: ServiceAttempt, onVoid: () -> Unit) {
             "Duration: ${formatMinutes(a.durationMinutes)}   |   Credited: ${formatMinutes(a.creditedMinutes)}",
             style = MaterialTheme.typography.bodyMedium
         )
-        a.failReason?.let {
-            Text("Reason: $it", style = MaterialTheme.typography.bodySmall)
-        }
-        a.voidReason?.let {
-            Text("Void reason: $it", style = MaterialTheme.typography.bodySmall)
-        }
+        a.failReason?.let { Text("Reason: $it", style = MaterialTheme.typography.bodySmall) }
+        a.voidReason?.let { Text("Void reason: $it", style = MaterialTheme.typography.bodySmall) }
         a.voidedAt?.let {
             Text("Voided: ${formatTimestamp(it)}", style = MaterialTheme.typography.bodySmall)
         }

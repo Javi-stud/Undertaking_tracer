@@ -1,5 +1,6 @@
 package com.school.servicemonitor.ui.dashboard
 
+import com.school.servicemonitor.ui.theme.AppColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -55,7 +56,7 @@ fun BulkPassDialog(
     ) {
         Surface(
             modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
-            color = MaterialTheme.colorScheme.background
+            color = AppColors.Ink
         ) {
             val results = state.results
             if (results != null) {

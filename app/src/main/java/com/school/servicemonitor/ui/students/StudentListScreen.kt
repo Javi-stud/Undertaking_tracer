@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -19,13 +21,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -43,6 +45,7 @@ import com.school.servicemonitor.appContainer
 import com.school.servicemonitor.data.entity.Student
 import com.school.servicemonitor.data.entity.StudentStatus
 import com.school.servicemonitor.data.entity.fullName
+import com.school.servicemonitor.ui.components.InitialsAvatar
 import com.school.servicemonitor.ui.components.NoInsets
 import com.school.servicemonitor.ui.components.StatusChip
 
@@ -66,9 +69,12 @@ fun StudentListScreen(
     Scaffold(
         topBar = { TopAppBar(title = { Text("Students") }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddStudent) {
-                Icon(Icons.Default.Add, contentDescription = "Add student")
-            }
+            FloatingActionButton(
+                onClick = onAddStudent,
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) { Icon(Icons.Default.Add, contentDescription = "Add student") }
         },
         contentWindowInsets = NoInsets
     ) { padding ->
@@ -78,7 +84,8 @@ fun StudentListScreen(
                 value = query,
                 onValueChange = viewModel::onQueryChange,
                 singleLine = true,
-                placeholder = { Text("Search by name or student number") },
+                shape = RoundedCornerShape(28.dp),
+                placeholder = { Text("Search by name or number") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) {
@@ -96,12 +103,19 @@ fun StudentListScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(horizontal = 16.dp)
             ) {
-                Switch(
-                    checked = includeArchived,
-                    onCheckedChange = viewModel::onIncludeArchivedChange
+                FilterChip(
+                    selected = includeArchived,
+                    onClick = { viewModel.onIncludeArchivedChange(!includeArchived) },
+                    label = { Text("Show archived") }
                 )
                 Spacer(Modifier.width(12.dp))
-                Text("Include archived students", style = MaterialTheme.typography.bodyMedium)
+                students?.let {
+                    Text(
+                        "${it.size} student${if (it.size == 1) "" else "s"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             when (val list = students) {
@@ -116,19 +130,20 @@ fun StudentListScreen(
                     ) {
                         Text(
                             text = if (query.isBlank())
-                                "No students registered yet.\nTap + to add one."
+                                "No students yet.\nTap + to add the first one."
                             else
                                 "No students match \"$query\".",
                             textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 } else {
                     LazyColumn(
                         contentPadding = PaddingValues(
-                            start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp
+                            start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp
                         ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(list, key = { it.id }) { student ->
                             StudentRow(student, onClick = { onOpenStudent(student.id) })
@@ -146,8 +161,10 @@ private fun StudentRow(student: Student, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier.padding(14.dp)
         ) {
+            InitialsAvatar(student.firstName, student.lastName)
+            Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(student.fullName, style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -160,7 +177,10 @@ private fun StudentRow(student: Student, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 if (student.isSsg) {
                     StatusChip(
                         "SSG",

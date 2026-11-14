@@ -196,18 +196,17 @@ fun DashboardScreen(
 
 
 
-            TabRow(selectedTabIndex = tabs.indexOfFirst { it.first == tab }.coerceAtLeast(0)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 tabs.forEach { (status, label) ->
-                    Tab(
+                    com.school.servicemonitor.ui.components.StatTile(
+                        label = label,
+                        value = state.entriesFor(status).size,
                         selected = tab == status,
                         onClick = { viewModel.onTabChange(status) },
-                        text = {
-                            Text(
-                                "$label (${state.entriesFor(status).size})",
-                                fontSize = 12.sp,
-                                maxLines = 1
-                            )
-                        }
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
